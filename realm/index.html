@@ -683,10 +683,11 @@ for (let y = 10; y <= 12; y++) for (let x = 50; x <= 54; x++) if (get(x, y) !== 
 
 // ---------- ground render ----------
 const G = new Layer(MPW, MPH), O = new Layer(MPW, MPH);
-(function shadeGround() {
+function shadeGround(x0 = 0, y0 = 0, x1 = MPW, y1 = MPH, only) {
   const d = G.d;
-  for (let y = 0; y < MPH; y++) for (let x = 0; x < MPW; x++) {
+  for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
     const tx = x >> 4, ty = y >> 4; let t = map[ty * MW + tx];
+    if (only && !only(tx, ty)) continue;
     if (NATURAL.has(t)) {
       const wx = Math.floor(x + (vnoise(x / 7, y / 7) - 0.5) * 10), wy = Math.floor(y + (vnoise(x / 7 + 40, y / 7 + 40) - 0.5) * 10);
       const tw = get(wx >> 4, wy >> 4);
@@ -750,7 +751,8 @@ const G = new Layer(MPW, MPH), O = new Layer(MPW, MPH);
     if (t !== T.WALL && t !== T.ROCK && ty > 0 && (y & 15) < 5 && (get(tx, ty - 1) === T.WALL || get(tx, ty - 1) === T.ROCK)) f = 0.6;
     const i = (y * MPW + x) * 4; d[i] = c[0] * f; d[i + 1] = c[1] * f; d[i + 2] = c[2] * f; d[i + 3] = 255;
   }
-})();
+}
+shadeGround();
 
 // vines creeping over stone
 (function vines() {
@@ -1031,7 +1033,7 @@ function tavBlocked(x, y, w, h) {
   return TCOL.some(c => x + w > c.x && x - w < c.x + c.w && y + 1 > c.y && y - h < c.y + c.h);
 }
 const TAV_SPAWN = [TAVX + 15 * TS, TAVY + 16.9 * TS];
-const TAV_EXIT = [456, 650];        // where you stand after leaving, by the tavern building
+const TAV_EXIT = [400, 752];        // where you stand after leaving, before the tavern gate
 const ODMAN = { x: TAVX + 11.3 * TS, y: TAVY + 5 * TS };
 
 // warm, lived-in palettes; the floor stays muted so the furniture reads against it
@@ -1674,22 +1676,135 @@ inter.push({ id: "odman", x: ODMAN.x, y: ODMAN.y + 10, r: 34, my: 42, mx: ODMAN.
 glows.push({ x: ODMAN.x, y: ODMAN.y - 22, r: 46, c: "rgba(255,140,40,.24)", f: 1.2 });
 tAddCol(ODMAN.x - TAVX - 11, ODMAN.y - TAVY - 7, 22, 9);
 
-// the tavern as a building in the realm, by the campfire
+// the Ember Tavern: at the forest's southern edge, left of the road, only its great gate shows; the rest hides under the trees
+const TAV_GATE = { x: 400, y: 736 };
 {
-  const bx = TAV_EXIT[0], by = TAV_EXIT[1] - 16;
-  const L = new Layer(56, 52);
-  for (let y = 22; y < 50; y++) for (let x = 6; x < 50; x++) L.px(x, y, (y % 7 === 0 || (x % 11 === 0 && y > 26)) ? PAL.wood[0] : pick(PAL.wood, 0.4 + hash2(x >> 2, y >> 3) * 0.3, x, y));
-  for (let y = 44; y < 52; y++) for (let x = 4; x < 52; x++) L.px(x, y, pick(PAL.stone, 0.4 + hash2(x >> 2, y >> 2) * 0.35, x, y));
-  for (let y = 2; y < 26; y++) { const half = 6 + (y - 2) * 1.05; for (let x = Math.round(28 - half); x <= Math.round(28 + half); x++) L.px(x, y, (y % 4 === 0) ? C("#3a0e0c") : pick([C("#5a1410"), C("#7a1c14"), C("#9a2a18")], 0.4 + hash2(x >> 2, y >> 2) * 0.4 - (x < 28 ? 0 : 0.2), x, y)); }
-  L.rect(23, 33, 10, 17, C("#1a0c06")); L.rect(24, 34, 8, 15, C("#3a2412")); L.px(30, 42, C("#c89a50"));
-  L.rect(10, 30, 8, 7, C("#1a0c06")); L.rect(11, 31, 6, 5, C("#ffb050")); L.rect(38, 30, 8, 7, C("#1a0c06")); L.rect(39, 31, 6, 5, C("#ffb050"));
-  L.rect(13, 31, 1, 5, C("#1a0c06")); L.rect(42, 31, 1, 5, C("#1a0c06"));
-  for (let y = 12; y < 20; y++) for (let x = 38; x < 43; x++) L.px(x, y, pick(PAL.stone, 0.5, x, y));
-  G.shadow(bx + 4, by + 2, 26, 6, 0.55);
-  sprite(L, bx, by, 28, 51); addCol(bx - 24, by - 12, 48, 12);
-  inter.push({ id: "taventer", x: bx, y: by + 12, r: 22, my: 36, label: "Enter the Ember Tavern" });
-  lights.push({ x: bx - 14, y: by - 16, r: 50, f: 0.3 }); lights.push({ x: bx + 14, y: by - 16, r: 50, f: 0.3 });
-  glows.push({ x: bx - 14, y: by - 16, r: 18, c: "rgba(255,170,70,.4)", f: 0.3 }); glows.push({ x: bx + 14, y: by - 16, r: 18, c: "rgba(255,170,70,.4)", f: 0.3 });
+  const X = TAV_GATE.x, B = TAV_GATE.y, LX = X - 72, LY = B - 80;
+  // a stone apron cut into the forest, joined to the end of the road
+  const cut = new Set();
+  [[44, 31, 33], [45, 31, 33], [46, 22, 33], [47, 22, 33]].forEach(([ty, a, b]) => { for (let tx = a; tx <= b; tx++) if (get(tx, ty) === T.FOREST) { set(tx, ty, T.PATH); cut.add(ty * MW + tx); } });
+  shadeGround(20 * TS, 43 * TS, 35 * TS, MPH, (tx, ty) => cut.has(ty * MW + tx) || get(tx, ty) === T.FOREST);
+  const unO = (x, y) => { if (x >= 0 && y >= 0 && x < MPW && y < MPH) O.d[(y * MPW + x) * 4 + 3] = 0; };
+  cut.forEach(i => { const tx = i % MW, ty = i / MW | 0; for (let y = 0; y < TS; y++) for (let x = 0; x < TS; x++) unO(tx * TS + x, ty * TS + y); });
+  for (let y = B - 52; y < B + 2; y++) for (let x = X - 62; x <= X + 64; x++) unO(x, y);
+
+  // steps and the warm spill of light on the stones in front of the door
+  for (let y = B; y < B + 10; y++) {
+    const s = y < B + 5 ? 0 : 1, half = 24 + s * 4, top = y - B - s * 5;
+    for (let x = X - half; x <= X + half; x++) G.px(x, y, top < 3 ? pick(PAL.stone, 0.62 - s * 0.12 + hash2(x >> 3, s) * 0.2 - (top === 0 ? 0.15 : 0), x, y) : pick(PAL.stone, 0.22 - (top - 3) * 0.08, x, y));
+  }
+  G.shadow(X, B + 1, 46, 3, 0.7);
+  for (let y = B; y < MPH; y++) for (let x = X - 40; x <= X + 40; x++) {
+    const nx = (x - X) / 40, ny = (y - B) / 22, k = 1 - (nx * nx + ny * ny); if (k <= 0) continue;
+    const i = (y * MPW + x) * 4, f = 1 + k * 0.45; G.d[i] *= f * 1.12; G.d[i + 1] *= f; G.d[i + 2] *= f * 0.8;
+  }
+
+  const L = new Layer(144, 82), W = (x, y, c) => L.px(x - LX, y - LY, c);
+  const iron = C("#1c1a24"), ironHi = C("#4d4a64"), rivet = C("#8a87a8"), glowC = C("#ffd070"), emberC = C("#ff9a3a");
+  const ashlar = (x, y, h, lit) => {
+    const row = Math.floor(y / h), off = (row & 1) * 6, gx = (x + off) % 12, gy = y % h;
+    if (gx === 0 || gy === 0) return C("#141220");
+    return pick(PAL.stone, 0.3 + hash2((x + off) / 12 | 0, row) * 0.28 + (gy === 1 ? 0.16 : 0) - (gy === h - 1 ? 0.1 : 0) + lit + (hash2(x, y) > 0.94 ? -0.2 : 0), x, y);
+  };
+  // the roof, its tiles just showing where the leaves part, and the eave's shadow on the wall
+  for (let y = B - 70; y < B - 52; y++) for (let x = X - 70; x <= X + 60; x++) {
+    const r = Math.floor((y - B + 70) / 4), sc = (x + (r & 1) * 3) % 6;
+    W(x, y, y >= B - 54 ? PAL.wood[0] : (y - B + 70) % 4 === 3 || sc === 0 ? C("#2a0a08") : pick([C("#4a120e"), C("#6a1812"), C("#8a2418")], 0.35 + hash2(x / 6 | 0, r) * 0.4, x, y));
+  }
+  // timber-framed wings, sunk in the trees' shade
+  const wing = (x0, x1, win) => {
+    for (let y = B - 52; y < B; y++) for (let x = x0; x <= x1; x++) {
+      const beam = y === B - 52 || y === B - 36 || y === B - 18 || y >= B - 3 || (x - x0) % 11 === 0 || Math.abs((x - x0) % 11 - (y - B + 36) * 11 / 18) < 0.8 && y > B - 36 && y < B - 18;
+      W(x, y, beam ? pick(PAL.wood, 0.3 + hash2(x, y >> 2) * 0.25, x, y) : pick([C("#2a2019"), C("#3b2e22"), C("#4d3d2c")], 0.4 + vnoise(x / 3, y / 3) * 0.4, x, y));
+    }
+    if (win) { const wx = win, wy = B - 32; for (let y = wy; y < wy + 12; y++) for (let x = wx; x < wx + 9; x++) { const edge = x === wx || x === wx + 8 || y === wy || y === wy + 11, bar = x === wx + 4 || y === wy + 6; W(x, y, edge ? PAL.wood[0] : bar ? C("#3a2412") : y < wy + 3 ? C("#ffe0a0") : pick([C("#e08a30"), C("#ffb050"), C("#ffd080")], 0.3 + hash2(x, y) * 0.5, x, y)); } }
+  };
+  wing(X - 68, X - 39, X - 60); wing(X + 39, X + 60, 0);
+  // the stone front: pilasters either side of a deep arch
+  for (let y = B - 52; y < B; y++) for (let x = X - 38; x <= X + 38; x++) W(x, y, ashlar(x, y, 7, 0));
+  for (const px of [X - 38, X + 27]) for (let y = B - 50; y < B; y++) for (let x = px; x < px + 12; x++) {
+    const e = x - px, cap = y < B - 44, plinth = y >= B - 9;
+    if (cap && (y === B - 45)) { W(x, y, C("#141220")); continue; }
+    W(x, y, e === 0 ? pick(PAL.stone, 0.85, x, y) : e === 11 ? C("#141220") : ashlar(x, y, 9, 0.1 + (cap || plinth ? 0.14 : 0) - e * 0.012));
+  }
+  // voussoirs, jambs, and a keystone carved with an ember
+  const CY = B - 28, RX = 18, RY = 18, OX = 25, OY = 25;
+  for (let y = B - 54; y < B; y++) for (let x = X - OX; x <= X + OX; x++) {
+    const dx = x + 0.5 - X, dy = y + 0.5 - CY, inner = y >= CY ? Math.abs(dx) <= RX : (dx * dx) / (RX * RX) + (dy * dy) / (RY * RY) <= 1;
+    const outer = y >= CY ? Math.abs(dx) <= OX : (dx * dx) / (OX * OX) + (dy * dy) / (OY * OY) <= 1;
+    if (!outer || inner) continue;
+    if (y >= CY) { const q = Math.floor((y - CY) / 6), jw = q & 1 ? 5 : 7, side = Math.abs(dx) - RX; W(x, y, (y - CY) % 6 === 0 || side > jw ? C("#141220") : pick(PAL.stone, 0.5 + hash2(q, dx > 0) * 0.2 - (dx > 0 ? 0.12 : 0) + (side < 1.5 ? 0.15 : 0), x, y)); continue; }
+    const a = Math.atan2(-dy, dx), seg = Math.round(a / (Math.PI / 9)), line = Math.abs(a - seg * Math.PI / 9) < 0.045;
+    const rr = Math.hypot(dx / OX, dy / OY);
+    W(x, y, line || rr > 0.97 ? C("#141220") : pick(PAL.stone, 0.48 + hash2(seg, 3) * 0.2 + (rr < 0.8 ? 0.14 : 0) - (dx > 0 ? 0.1 : 0), x, y));
+  }
+  for (let y = B - 57; y < B - 44; y++) { const hw = 4 - Math.max(0, (y - (B - 50)) >> 1); for (let x = X - hw; x <= X + hw; x++) W(x, y, Math.abs(x - X) === hw || y === B - 57 ? C("#141220") : pick(PAL.stone, 0.72 - (x > X ? 0.12 : 0), x, y)); }
+  [[0, -53], [-1, -52], [1, -52], [0, -52], [-1, -51], [0, -51], [1, -51], [0, -50]].forEach(([dx, dy], k) => W(X + dx, B + dy, k < 2 ? glowC : emberC));
+  // the great doors: oak planks under iron bands, light leaking through the seam and under the sill
+  for (let y = B - 46; y < B - 1; y++) for (let x = X - RX; x < X + RX; x++) {
+    const dx = x + 0.5 - X, dy = y + 0.5 - CY; if (y < CY && (dx * dx) / (RX * RX) + (dy * dy) / (RY * RY) > 1) continue;
+    const pl = Math.floor((x - X + RX) / 6), gap = (x - X + RX) % 6 === 0, seam = x === X - 1 || x === X;
+    const dIn = y < CY ? 1 - Math.hypot(dx / RX, dy / RY) : Math.min(RX - Math.abs(dx), 9) / RX, shade = Math.min(1, 0.45 + dIn * 3.2);
+    let c = gap ? C("#170b05") : pick(PAL.wood, 0.3 + hash2(pl, 7) * 0.3 + (vnoise(x * 0.4, y * 0.07 + pl) - 0.5) * 0.45 + (x % 6 === 1 ? 0.12 : 0), x, y);
+    const leak = seam && x === X && hash2(y, 5) > 0.45;
+    if (seam) c = leak ? (hash2(y, 6) > 0.5 ? glowC : emberC) : C("#0e0603");
+    const band = [B - 38, B - 24, B - 9].find(b => y === b || y === b + 1);
+    if (band !== undefined && !seam) c = y === band ? ironHi : iron;
+    if (band !== undefined && y === band + 1 && (x - X + RX) % 6 === 3 && !seam) c = rivet;
+    W(x, y, leak ? c : c.map(v => v * shade));
+  }
+  for (const kx of [X - 6, X + 5]) {
+    W(kx - 1, B - 19, ironHi); W(kx, B - 19, rivet); W(kx + 1, B - 19, ironHi); W(kx, B - 18, iron);
+    [[-2, -16], [2, -16], [-2, -15], [2, -15], [-1, -14], [1, -14], [0, -14], [-1, -17], [1, -17]].forEach(([dx, dy], k) => W(kx + dx, B + dy, k > 6 ? rivet : k > 3 ? iron : ironHi));
+  }
+  for (let x = X - RX + 1; x < X + RX - 1; x++) { W(x, B - 2, hash2(x, 9) > 0.35 ? emberC : C("#7a3010")); W(x, B - 1, pick(PAL.stone, 0.75, x, B - 1)); }
+  // the canopy's shade lies heavy on the top of the wall
+  for (let y = 0; y < 44; y++) for (let x = 0; x < L.w; x++) L.mul(x, y, Math.min(1, 0.5 + y / 44 * 0.5));
+  // lanterns on the pilasters
+  const lan = [X - 32, X + 33];
+  for (const lx of lan) {
+    const ly = B - 30;
+    for (let y = ly - 7; y <= ly + 4; y++) for (let x = lx - 3; x <= lx + 3; x++) {
+      const e = Math.abs(x - lx), t = y - ly;
+      if (t < -5) { if (e <= 1 + (t + 7)) W(x, y, t === -7 ? ironHi : iron); continue; }
+      if (t === 4) { if (e <= 2) W(x, y, iron); continue; }
+      if (e > 2) continue;
+      W(x, y, e === 2 || t === -5 || t === 3 ? iron : t < -2 ? C("#fff0c0") : e === 0 ? glowC : C("#ffb050"));
+    }
+    W(lx, ly - 8, ironHi); W(lx, ly + 5, iron);
+  }
+  // a sign on an iron arm: a tankard with a flame over it
+  for (let x = X + 38; x <= X + 60; x++) W(x, B - 46, x === X + 60 ? ironHi : iron);
+  W(X + 39, B - 45, iron); W(X + 40, B - 44, iron);
+  for (const cx of [X + 45, X + 57]) for (let y = B - 45; y < B - 41; y++) W(cx, y, y & 1 ? ironHi : iron);
+  for (let y = B - 41; y < B - 28; y++) for (let x = X + 42; x <= X + 60; x++) {
+    const e = x === X + 42 || x === X + 60 || y === B - 41 || y === B - 29;
+    W(x, y, e ? C("#170b05") : pick(PAL.wood, 0.45 + hash2(x, (y - B) / 4 | 0) * 0.3 + (y === B - 40 ? 0.25 : 0), x, y));
+  }
+  ["..fff..", ".fyyf..", "..fy...", "wwwwwh.", "wcccwh.", "wcccw.h", "wcccwh.", ".www..."].forEach((r, j) => [...r].forEach((ch, i) => {
+    const col = { f: emberC, y: glowC, w: C("#e8d0a0"), c: C("#8a5a28"), h: C("#e8d0a0") }[ch]; if (col) W(X + 48 + i, B - 40 + j, col);
+  }));
+  // two old trunks standing before the wings
+  for (const [tx, h] of [[X - 66, 62], [X + 64, 58]]) for (let y = B - h; y < B + 1; y++) {
+    const w = y > B - 4 ? 5 : y > B - 8 ? 4 : 3;
+    for (let x = tx - w; x <= tx + w; x++) W(x, y, pick(PAL.bark, 0.5 + (x - tx) / w * 0.45 * (tx < X ? 1 : -1) + (hash2(x, y >> 2) - 0.5) * 0.3, x, y));
+  }
+  sprite(L, X, B, 72, 80);
+  addCol(X - 70, B - 60, 142, 28);
+  inter.push({ id: "taventer", x: X, y: B + 12, r: 22, my: 58, label: "Enter the Ember Tavern" });
+  for (const lx of lan) { lights.push({ x: lx, y: B - 32, r: 44, f: 0.3 }); glows.push({ x: lx, y: B - 32, r: 14, c: "rgba(255,170,70,.45)", f: 0.3 }); }
+  lights.push({ x: X, y: B + 2, r: 34, f: 0.2 }); glows.push({ x: X, y: B - 2, r: 22, c: "rgba(255,130,40,.22)", f: 0.2 });
+  glows.push({ x: X, y: B - 52, r: 6, c: "rgba(255,150,60,.5)", f: 0.15 }); glows.push({ x: X - 56, y: B - 26, r: 12, c: "rgba(255,160,70,.3)", f: 0.2 });
+
+  // leaves hang over the roof and down the wings; ivy trails over the pilasters
+  const leaf = (cx, cy, rx, ry, seed) => blob(O, cx, cy, rx, ry, PAL.fcanopy, seed);
+  [[X - 62, B - 68, 18, 12], [X - 34, B - 72, 18, 12], [X - 6, B - 74, 16, 10], [X + 22, B - 72, 16, 11], [X + 46, B - 68, 13, 10],
+   [X - 64, B - 57, 10, 6], [X - 44, B - 55, 8, 5], [X - 26, B - 57, 9, 5], [X + 14, B - 57, 8, 5], [X + 30, B - 56, 9, 6], [X + 50, B - 56, 10, 6], [X - 74, B - 44, 9, 16], [X + 70, B - 40, 8, 14],
+   [X - 50, B + 20, 7, 14], [X + 70, B - 14, 5, 9], [X + 90, B - 20, 6, 12], [X + 150, B - 20, 7, 12], [X + 150, B + 16, 6, 14]].forEach(([x, y, rx, ry], k) => leaf(x, y, rx, ry, 700 + k * 13));
+  const ivy = C("#2f4a18"), ivyL = C("#58762b"), ivyD = C("#1f2c13");
+  [[X - 38, 18], [X - 34, 11], [X - 29, 22], [X - 20, 7], [X + 17, 9], [X + 28, 20], [X + 32, 12], [X + 37, 16], [X - 50, 14], [X + 64, 10]].forEach(([vx, len], k) => {
+    let x = vx; for (let j = 0; j < len; j++) { const y = B - 57 + j; x += hash2(k, j) > 0.8 ? 1 : hash2(k, j) < 0.2 ? -1 : 0; O.px(x, y, ivyD); if (hash2(j, k + 3) > 0.45) O.px(x + (j & 1 ? 1 : -1), y, hash2(k, j + 9) > 0.5 ? ivyL : ivy); }
+  });
 }
 
 // Od-Man: a giant of charred stone with fire running through the cracks, crowned in flame. Drawn fresh every frame.
@@ -4291,6 +4406,13 @@ function render() {
   });
 
   ctx.drawImage(overCv, cx, cy, VW, VH, 0, 0, VW, VH);
+  // smoke from the tavern's hidden chimney, rising through the leaves
+  const smX = TAV_GATE.x - 40, smY = TAV_GATE.y - 76;
+  if (!tav && inView(smX, smY, 60, cx, cy)) for (let i = 0; i < 8; i++) {
+    const k = (t * 0.18 + i / 8) % 1, r = 1 + Math.round(k * 3), sx = Math.round(smX + Math.sin(t * 0.7 + i * 2.3) * 2 * k + k * 9 - cx), sy = Math.round(smY - k * 50 - cy);
+    ctx.fillStyle = `rgba(200,190,200,${(0.55 * (1 - k) * Math.min(1, k * 6)).toFixed(3)})`;
+    ctx.fillRect(sx - r, sy - r + 1, r * 2, r * 2 - 2); ctx.fillRect(sx - r + 1, sy - r, r * 2 - 2, r * 2);
+  }
 
   // fireflies
   flies.forEach((f, i) => {
