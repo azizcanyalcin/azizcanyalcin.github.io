@@ -3624,6 +3624,9 @@ const CUTS = {
 };
 const D2R = Math.PI / 180;
 const facesAway = () => Math.sin(DIR_ANG[player.dir]) < -0.3;
+// the swing plane is seen from above; in a side view it is far more foreshortened than facing the camera
+const sideView = () => player.dir === "left" || player.dir === "right";
+const swingSquash = () => sideView() ? 0.45 : 0.8;
 function bladeState() {
   const p = atkT > 0 ? 1 - atkT / atkDur : 1, e = 1 - Math.pow(1 - p, 3), face = DIR_ANG[player.dir], cuts = CUTS[player.dir];
   const B = ([a0, sw, side], len, wide = 1) => {
@@ -3634,20 +3637,23 @@ function bladeState() {
   if (atkStep === 2) return [B(cuts[1], 14)];
   return [B(cuts[0], 15, 1.04), B(cuts[1], 15, 1.04)];
 }
-function drawBlades(cx, cy, fade = 1) {
+// part: "all", or in a side view "back" (the half of the swing behind the body) and "front"
+function drawBlades(cx, cy, fade = 1, part = "all") {
+  const sq = swingSquash(), keep = a => part === "all" || (part === "back") === (Math.sin(a) < 0);
   for (const bl of bladeState()) {
-    const px = Math.round(player.x - cx) + (bl.px - player.x), py = Math.round(player.y - cy) + (bl.py - player.y), pt = (a, r) => [Math.round(px + Math.cos(a) * r), Math.round(py + Math.sin(a) * r * 0.8)];
+    const px = Math.round(player.x - cx) + (bl.px - player.x), py = Math.round(player.y - cy) + (bl.py - player.y), pt = (a, r) => [Math.round(px + Math.cos(a) * r), Math.round(py + Math.sin(a) * r * sq)];
     // trail: the last stretch of the arc the tip has travelled, fading toward its start
     const span = Math.min(1, bl.e) * Math.abs(bl.sweep), from = bl.a - Math.sign(bl.sweep) * Math.min(span, 1.9), n = Math.max(2, Math.ceil(Math.abs(bl.a - from) / 0.05));
     for (let k = 0; k <= n; k++) {
       const f = k / n, a = from + (bl.a - from) * f, al = f * f * fade;
+      if (!keep(a)) continue;
       ctx.fillStyle = `rgba(255,${150 + 90 * f | 0},${50 + 130 * f | 0},${0.8 * al})`;
       let [x, y] = pt(a, bl.len); ctx.fillRect(x, y, 1, 1);
       [x, y] = pt(a, bl.len - 1); ctx.fillRect(x, y, 1, 1);
       ctx.fillStyle = `rgba(230,80,24,${0.45 * al})`; [x, y] = pt(a, bl.len - 2.5); ctx.fillRect(x, y, 1, 1);
     }
-    if (fade < 1) continue;
-    const c = Math.cos(bl.a), sn = Math.sin(bl.a) * 0.8;
+    if (fade < 1 || !keep(bl.a)) continue;
+    const c = Math.cos(bl.a), sn = Math.sin(bl.a) * sq;
     ctx.fillStyle = "#3a2a4c"; for (let r = 1; r <= 3; r++) ctx.fillRect(Math.round(px + c * r), Math.round(py + sn * r), 2, 2);
     ctx.fillStyle = "#e9b58c"; ctx.fillRect(Math.round(px + c * 4.5), Math.round(py + sn * 4.5), 2, 2);
     ctx.fillStyle = "#b4b1cc"; ctx.fillRect(Math.round(px + c * 6 - sn * 1.5), Math.round(py + sn * 6 + c * 1.2), 1, 1); ctx.fillRect(Math.round(px + c * 6 + sn * 1.5), Math.round(py + sn * 6 - c * 1.2), 1, 1);
@@ -4221,9 +4227,10 @@ function render() {
       // no body bob while walking: bobbing on one step only cancelled out the other foot's lift
       const bob = 0;
       if (bladeFade > 0 && facesAway()) drawBlades(cx, cy, bladeFade);
+      else if (bladeFade > 0 && sideView()) drawBlades(cx, cy, bladeFade, "back");
       if (armed && facesAway()) drawHeld(cx, cy, breath);
       ctx.drawImage(cv, Math.round(player.x - 9 - cx), Math.round(player.y - 25 - cy - bob));
-      if (bladeFade > 0 && !facesAway()) drawBlades(cx, cy, bladeFade);
+      if (bladeFade > 0 && !facesAway()) drawBlades(cx, cy, bladeFade, sideView() ? "front" : "all");
       if (armed && !facesAway()) drawHeld(cx, cy, breath);
     } else if (e.tn) drawTavNpc(e.tn, cx, cy, t);
     else if (e.shard) {
@@ -4359,7 +4366,7 @@ function render() {
     ctx.fillStyle = "rgba(220,80,255,.6)"; ctx.fillRect(Math.round(o.x - o.vx * 0.04 - cx), Math.round(o.y - o.vy * 0.04 - cy), 2, 2);
   });
   // a soft glow on the blade tip, only while the blade is in front of the body
-  if (atkT > 0 && !facesAway()) for (const bl of bladeState()) glow(bl.px + Math.cos(bl.a) * bl.len - cx, bl.py + Math.sin(bl.a) * bl.len * 0.8 - cy, atkStep === 3 ? 9 : 7, "rgba(255,150,60,.22)");
+  if (atkT > 0 && !facesAway()) for (const bl of bladeState()) glow(bl.px + Math.cos(bl.a) * bl.len - cx, bl.py + Math.sin(bl.a) * bl.len * swingSquash() - cy, atkStep === 3 ? 9 : 7, "rgba(255,150,60,.22)");
   { const [lx, ly] = boatLantern(); glow(lx - cx, ly - cy, 16, "rgba(255,180,80,.35)"); }
   if (state.gateOpen) glow(GATE.x - cx, 130 - cy, 70, `rgba(255,120,40,${0.3 + 0.1 * pulse})`);
   ctx.globalCompositeOperation = "source-over";
