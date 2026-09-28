@@ -346,6 +346,12 @@ button{font:inherit;color:inherit}
 @keyframes emberFlick{50%{opacity:.35}}
 .talk-leave{appearance:none;border:0;background:none;margin:14px 0 0 26px;padding:0;cursor:pointer;font-family:var(--title);font-weight:600;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
 .talk-leave:hover,.talk-leave:focus-visible{outline:none;color:var(--bone)}
+.aypanel{position:absolute;left:50%;bottom:92px;transform:translateX(-50%);z-index:4;display:flex;gap:10px;align-items:center;max-width:min(560px,80vw);padding:8px 14px;background:rgba(8,10,18,.72);border:1px solid rgba(200,210,240,.18);border-radius:10px;pointer-events:none}
+.aypanel canvas{width:36px;height:36px;image-rendering:pixelated}
+.ay-line{margin:0;font-family:var(--serif);font-size:15px;color:#e6ebff;text-shadow:var(--tx)}
+.ay-you{margin:0 0 2px;font-family:var(--serif);font-size:12px;font-style:italic;color:var(--dim)}
+.ay-state{font-family:var(--title);font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:#9fb0e0}
+#game.paused .aypanel,#game.reading .aypanel{opacity:0}
 @media (max-width:640px){.talk{grid-template-columns:1fr;gap:12px;padding:60px 18px 26px}.talk-portrait{width:84px;height:84px}}
 .fade{position:absolute;inset:0;z-index:8;background:#000;opacity:0;pointer-events:none;transition:opacity .42s ease}
 .fade.in{opacity:1}.fade.out{opacity:0}
@@ -456,6 +462,7 @@ button{font:inherit;color:inherit}
     <div class="talk-portrait"><canvas id="talk-cv" width="48" height="48"></canvas></div>
     <div class="talk-body"><b class="talk-name" id="talk-name"></b><p class="talk-you" id="talk-you" hidden></p><p class="talk-line" id="talk-line"></p><ol class="talk-choices" id="talk-choices"></ol><span class="talk-more" id="talk-more">E ›</span><span class="talk-ember" id="talk-ember" data-s="connecting" hidden></span><button class="talk-leave" id="talk-leave" type="button" hidden>Leave</button></div>
   </div>
+  <div class="aypanel" id="aypanel" hidden><canvas id="ay-cv" width="24" height="24"></canvas><div><p class="ay-you" id="ay-you"></p><p class="ay-line" id="ay-line"></p><span class="ay-state" id="ay-state"></span></div></div>
   <div class="fade" id="fade" hidden></div>
   <div class="subband" id="subband" hidden><b id="sub-name"></b><p id="sub-line"></p></div>
 
@@ -1033,6 +1040,7 @@ function tavBlocked(x, y, w, h) {
 const TAV_SPAWN = [TAVX + 15 * TS, TAVY + 16.9 * TS];
 const TAV_EXIT = [456, 650];        // where you stand after leaving, by the tavern building
 const ODMAN = { x: TAVX + 11.3 * TS, y: TAVY + 5 * TS };
+const AYB = { x: TAVX + 12.6 * TS, y: TAVY + 16.4 * TS };  // Āybarāq's spot by the door
 
 // warm, lived-in palettes; the floor stays muted so the furniture reads against it
 const TPAL = {
@@ -1671,6 +1679,7 @@ function drawTavOverlay(cx, cy, t) {
 }
 inter.push({ id: "tavdoor", x: TAVX + 15 * TS, y: TAVY + FY1 - 6, r: 26, my: 14, label: "Step out into the night" });
 inter.push({ id: "odman", x: ODMAN.x, y: ODMAN.y + 10, r: 34, my: 42, mx: ODMAN.x, myAbs: ODMAN.y, label: "Speak with Od-Man" });
+inter.push({ id: "aybaraq", x: AYB.x, y: AYB.y + 4, r: 30, my: 34, mx: AYB.x, myAbs: AYB.y, label: "Speak with Āybarāq" });
 glows.push({ x: ODMAN.x, y: ODMAN.y - 22, r: 46, c: "rgba(255,140,40,.24)", f: 1.2 });
 tAddCol(ODMAN.x - TAVX - 11, ODMAN.y - TAVY - 7, 22, 9);
 
@@ -1843,6 +1852,112 @@ function drawGehan(g, bx, by, t, s) {
     const up = Math.floor(t * 8 + i) & 1;
     put(Math.round(br), Math.round(bxp), "#e8e0cc"); put(Math.round(br) + up, Math.round(bxp) - 1, "#c8c0b0"); put(Math.round(br) + up, Math.round(bxp) + 1, "#c8c0b0");
   }
+}
+
+// ---------- Āybarāq: art ----------
+// Āybarāq, the Moon-Firm Blade: silver-grey armour, a night-blue cloak, a crescent glaive; Boz the grey falcon circles above.
+const AY_COL = { boot: "#1b1822", greave: "#6f7486", armor: "#8f95a8", trim: "#d7dcec", belt: "#3a3350", cloak: "#1c2446", cloak2: "#2a3566",
+  skin: "#e3b48f", hair: "#3c404e", eye: "#15151c", shaft: "#5a4a3a", blade: "#e8ecff", blade2: "#aab4d8" };
+const ayReady = () => accepted("keep");
+// the moon general, about a third taller than the hero: a long mantle, a high collar, falcon-feather pauldrons
+const AY_COL2 = { boot: "#15131c", coat: "#232838", coat2: "#2f3650", mantle: "#171c2e", mantle2: "#222a44", trim: "#cfd6ea", trim2: "#8e97b4",
+  feather: "#6c7182", feather2: "#9aa0b0", tip: "#dfe4f2", collar: "#1d2440", skin: "#d9a886", beard: "#aeb4c2", hair: "#c3c8d4", hair2: "#8c92a2",
+  eye: "#e6eeff", brooch: "#eef2ff", shaft: "#4a3e34", blade: "#eef1ff", blade2: "#a9b3d6" };
+// the cape behind him: from the shoulders to the ground, flaring wider than the body toward the hem
+function ayCape(r, dx, view) {
+  if (r < 1 || r > 22) return null;
+  const a = Math.abs(dx), side = view === "side";
+  const w = side ? 3 + (22 - r) * 0.2 : 5.5 + (22 - r) * 0.16;          // 5.5 at the shoulders, ~9 at the hem
+  const x = side ? dx + 2.5 : dx;                                          // in profile it trails behind him
+  if (Math.abs(x) > w || (side && dx > 1)) return null;
+  if (r === 1 || Math.abs(Math.abs(x) - w) < 0.7) return "trim2";
+  return (Math.floor(a) + r) % 4 === 0 ? "mantle2" : "mantle";
+}
+// one body pixel in front of the cape: r counts rows up from the feet, dx from the centre; view is down, up or side (facing +dx)
+function ayPart(r, dx, view, walk) {
+  const a = Math.abs(dx), side = view === "side", back = view === "up", step = walk ? (walk === 1 ? 1 : -1) : 0;
+  if (back) {                                                             // from behind: the cape covers him, the pauldrons and hair show
+    if (r >= 20 && r <= 24) { const pw = [6, 7, 8, 8, 7][r - 20]; if (a <= pw) return r === 20 || a === pw ? "tip" : a % 2 ? "feather" : "feather2"; }
+    if (r >= 25 && r <= 28 && (a === 3 || (a === 4 && r <= 26))) return r === 28 ? "trim" : "collar";
+    if (r >= 25 && r <= 30 && a <= 2) return a === 1 ? "hair2" : "hair";
+    return null;
+  }
+  // boots, stepping when he walks
+  if (r <= 1) return side ? ((dx === step || dx === -1 - step) ? "boot" : null) : ((a === 1 || a === 2) && !(walk && r === 1 && (dx > 0) === (step > 0)) ? "boot" : null);
+  // long coat to the ankles, open at the front
+  if (r <= 13) {
+    const w = side ? 2.5 : 3.5 + (13 - r) * 0.05, x = dx - (r <= 3 ? step : 0);
+    if (Math.abs(x) > w) return null;
+    if (Math.abs(Math.abs(x) - w) < 0.6 || r === 2) return "trim2";
+    if (!side && a <= 0) return "coat2";
+    return (a + r) % 5 ? "coat" : "coat2";
+  }
+  if (r === 14) return a <= (side ? 2 : 4) ? (a === 0 && !side ? "brooch" : "trim") : null;   // belt with a silver clasp
+  // broad chest plate, rows 15..19, widening toward the shoulders
+  if (r <= 19) {
+    const w = side ? 2.5 : 3.5 + (r - 15) * 0.4;
+    if (a > w) return null;
+    if (!side && r === 18 && a === 0) return "brooch";                  // the crescent brooch
+    return Math.abs(a - w) < 0.6 ? "trim" : (a + r) % 3 ? "coat2" : "coat";
+  }
+  // tiered falcon-feather pauldrons, wider than anything below them
+  if (r <= 24) {
+    const pw = side ? [3, 4, 5, 5, 4][r - 20] : [6, 7, 8, 8, 7][r - 20];
+    if (side && dx < -3) return null;
+    if (a <= (side ? 1 : 2) && r >= 23) return "collar";               // the collar's base between the shoulders
+    if (a <= pw) return r === 20 || a === pw ? "tip" : a % 2 ? "feather" : "feather2";
+    return null;
+  }
+  // the high collar frames the head, rising at the sides
+  if (r <= 28) {
+    if (!side && (a === 3 || (a === 4 && r <= 26))) return r === 28 || a === 4 ? "trim" : "collar";
+    if (side && dx <= -2 && dx >= -3) return r === 28 ? "trim" : "collar";
+  }
+  // the head, rows 25..29
+  if (r <= 29) {
+    if (a > 2) return null;
+    if (r >= 28) return a === 2 ? "hair2" : "hair";
+    if (side) { if (dx < 0) return "hair2"; if (r === 27 && dx === 1) return "eye"; return r <= 25 && dx >= 0 ? "beard" : "skin"; }
+    if (r === 27 && a === 1) return "eye";
+    return r <= 25 ? "beard" : "skin";
+  }
+  if (r === 30 && a <= (side ? 1 : 1)) return "hair";   // swept back
+  return null;
+}
+function drawAybaraq(g, bx, by, t, s, o = {}) {
+  const dir = o.dir || "down", view = dir === "up" ? "up" : dir === "down" ? "down" : "side", flip = dir === "left" ? -1 : 1;
+  const lift = o.down ? 8 : 0;
+  const put = (r, dx, c) => { g.fillStyle = c; g.fillRect(Math.round(bx + dx * flip * s), Math.round(by - (r + 1 - lift) * s), s, s); };
+  if (o.sit) g.globalAlpha = 0.62;   // dim and still until the trial is taken
+  const handR = 16 - lift, handX = view === "side" ? 3 : 6;
+  // the glaive: planted like a staff at rest, swept in a wide arc when striking
+  const ang = o.swing >= 0 ? (-2.3 + o.swing * 2.8) * (view === "side" ? 1 : 0.85) : -Math.PI / 2;
+  const staff = () => {
+    const from = o.swing >= 0 || o.down ? 0 : -handR;   // at rest the butt rests on the ground
+    for (let k = from; k <= 22; k++) put(handR + Math.round(-Math.sin(ang) * k), handX + Math.round(Math.cos(ang) * k), k >= 20 ? AY_COL2.blade : AY_COL2.shaft);
+    for (let k = -4; k <= 4; k++) {
+      const along = 22 - (k * k) / 3.2, off = k + 1.6, ca = Math.cos(ang), sa = Math.sin(ang), cp = Math.cos(ang + Math.PI / 2), sp = Math.sin(ang + Math.PI / 2);
+      put(handR + Math.round(-sa * along - sp * off), handX + Math.round(ca * along + cp * off), Math.abs(k) >= 3 ? AY_COL2.blade2 : AY_COL2.blade);
+    }
+  };
+  if (view === "up") staff();   // held in front of him, so from behind it sits under the body
+  const from = o.down ? 8 : 0;
+  for (let r = from; r <= 22; r++) for (let dx = -10; dx <= 10; dx++) { const k = ayCape(r, dx, view); if (k) put(r, dx, AY_COL2[k]); }
+  for (let r = from; r <= 30; r++) for (let dx = -10; dx <= 10; dx++) { const k = ayPart(r, dx, view, o.walk || 0); if (k) put(r, dx, AY_COL2[k]); }
+  if (!o.down && view !== "up") { put(handR, handX, AY_COL2.skin); put(handR, handX - 1, AY_COL2.coat); }
+  if (view !== "up") staff();
+  g.globalAlpha = 1;
+  // Boz: perched on the pauldron in the tavern, circling above him on the road
+  const bird = (x, y, flap) => { g.fillStyle = "#7c8190"; g.fillRect(Math.round(x), Math.round(y), 3 * s, 2 * s); g.fillStyle = "#e0c060"; g.fillRect(Math.round(x + 3 * s), Math.round(y), s, s);
+    g.fillStyle = "#5c616e"; g.fillRect(Math.round(x - 2 * s), Math.round(y - flap * s), 2 * s, s); g.fillRect(Math.round(x + 3 * s), Math.round(y - flap * s), 2 * s, s); };
+  if (o.perch) bird(bx + 5 * flip * s, by - (26 - lift) * s, 0);
+  else if (!o.sit) bird(bx + Math.cos(t * 1.2) * 16 * s, by - (40 + Math.sin(t * 1.2) * 3) * s, Math.floor(t * 7) & 1);
+  // downed: he kneels on the glaive under a moonbeam
+  if (o.down) { const gr = g.createLinearGradient(0, by - 50 * s, 0, by); gr.addColorStop(0, "rgba(200,220,255,0)"); gr.addColorStop(1, "rgba(200,220,255,.22)"); g.fillStyle = gr; g.fillRect(Math.round(bx - 5 * s), Math.round(by - 50 * s), 10 * s, 50 * s); }
+}
+// silver motes orbit him in the tavern once the trial is taken
+function drawAyMotes(g, bx, by, t) {
+  for (let i = 0; i < 8; i++) { const a = t * 1.1 + i * Math.PI / 4; g.fillStyle = `rgba(220,230,255,${0.5 + 0.4 * Math.sin(t * 3 + i)})`; g.fillRect(Math.round(bx + Math.cos(a) * 15), Math.round(by - 16 + Math.sin(a) * 5), 1, 1); }
 }
 inter.push({ id: "gehan", x: GEHAN.x, y: GEHAN.y + 10, r: 34, my: 42, mx: GEHAN.x, myAbs: GEHAN.y, label: "Speak with Gehan" });
 
@@ -2738,6 +2853,7 @@ function drawArt(name) {
     const id = name.slice(4);
     if (id === "odman") { drawOdman(c, W / 2, Math.round(H * 0.9), 0.37, 7); inkify(c, W, H, 9); }
     if (id === "gehan") { drawGehan(c, W / 2 - 14, Math.round(H * 0.92), 0.37, 7); inkify(c, W, H, 9); }
+    if (id === "aybaraq") { drawAybaraq(c, W / 2, Math.round(H * 0.92), 0.37, 6, { dir: "down", perch: true }); inkify(c, W, H, 9); }
     const g = c.createRadialGradient(W / 2, H * 0.5, 10, W / 2, H * 0.5, W * 0.5); g.addColorStop(0, "rgba(190,90,30,.2)"); g.addColorStop(1, "rgba(190,90,30,0)"); c.fillStyle = g; c.fillRect(0, 0, W, H);
     sketchShadow(c, W / 2, H * 0.84 + 4, 60, 7); return;
   }
@@ -2957,7 +3073,7 @@ function banner(name) {
 }
 
 // ---------- tooltip for the nearest interactable ----------
-const TIP_NAME = { gehan: "Gēhān", odman: "Od-Man", tavdoor: "Tavern door", taventer: "The Ember Tavern", boat: "A small boat", sign: "The Wayfarer's Sign", throne: "Throne of Prompts", keep: "Banner of the Keep", dragon: "The Judge of the Mere", oracle: "The Great Cap", field: "Sign of the Field", gate: "Gate of Production" };
+const TIP_NAME = { aybaraq: "Āybarāq", gehan: "Gēhān", odman: "Od-Man", tavdoor: "Tavern door", taventer: "The Ember Tavern", boat: "A small boat", sign: "The Wayfarer's Sign", throne: "Throne of Prompts", keep: "Banner of the Keep", dragon: "The Judge of the Mere", oracle: "The Great Cap", field: "Sign of the Field", gate: "Gate of Production" };
 function isUnread(it) {
   switch (it.id) {
     case "statue": return it.idx === state.lit;
@@ -2972,7 +3088,7 @@ function isUnread(it) {
   }
 }
 // grouped objects wake only once their area's sign has been read
-const locked = it => ((it.id === "keep" || it.id === "statue") && !accepted("keep")) || (it.id === "sword" && (!has("field") || !accepted("field"))) || (it.id === "statue" && !has("keep")) || (it.id === "gate" && !state.bossDown);
+const locked = it => (it.id === "aybaraq" && (!ayReady() || ally.joined)) || ((it.id === "keep" || it.id === "statue") && !accepted("keep")) || (it.id === "sword" && (!has("field") || !accepted("field"))) || (it.id === "statue" && !has("keep")) || (it.id === "gate" && !state.bossDown);
 const marked = it => isUnread(it) && !locked(it);
 function flyAnchor(it) {
   if (it.id === "sword") { const w = swordTops[it.idx]; return { x: w.x, y: w.y - 6, r: 10 }; }
@@ -2991,7 +3107,7 @@ function showTip(it) {
   if (h.dataset.t !== key) {
     h.dataset.t = key;
     const name = it.id === "statue" ? `Statue ${ROMAN[it.idx]}` : it.id === "sword" ? SWORDS[it.idx][0] : TIP_NAME[it.id];
-    const sub = it.id === "odman" ? "The Burning Man" : it.id === "gehan" ? "Keeper of the Living World" : it.id === "tavdoor" || it.id === "taventer" ? "Door" : it.id === "boat" ? "Row it anywhere on the mere" : it.id === "statue" ? STAGES[it.idx].who : it.id === "sword" ? SWORDS[it.idx][1] : it.id === "dragon" ? "Elite · Prompt Test Service" : "Lore";
+    const sub = it.id === "odman" ? "The Burning Man" : it.id === "aybaraq" ? "The Moon-Firm Blade" : it.id === "gehan" ? "Keeper of the Living World" : it.id === "tavdoor" || it.id === "taventer" ? "Door" : it.id === "boat" ? "Row it anywhere on the mere" : it.id === "statue" ? STAGES[it.idx].who : it.id === "sword" ? SWORDS[it.idx][1] : it.id === "dragon" ? "Elite · Prompt Test Service" : "Lore";
     h.innerHTML = "<b></b><span></span><span class=\"q\"></span><em></em>";
     h.children[0].textContent = name; h.children[1].textContent = sub;
     h.children[2].textContent = isUnread(it) ? "Quest objective" : "";
@@ -3004,6 +3120,7 @@ function showTip(it) {
 function interact(it) {
   if (boat.riding) { boatDisembark(); return; }
   if (!it) return;
+  if (it.id === "aybaraq") { if (!ayReady() || ally.joined) return; talkTo("aybaraq"); return; }
   if (it.id === "odman") { talkTo("odman"); return; }
   if (it.id === "gehan") { talkTo("gehan"); return; }
   if (it.id === "tavdoor") { if (!accepted("keep")) { chat("The door will not open for one who has not taken the trial.", "#bfb398"); Snd.play("cold"); return; } exitTavern(); return; }
@@ -3013,7 +3130,7 @@ function interact(it) {
     const i = it.idx;
     if (i <= state.lit) {
       const first = i === state.lit;
-      if (first) { readFlourish(it); Snd.play("ignite", { pan: Math.max(-0.8, Math.min(0.8, (statues[i].x - player.x) / 150)) }); state.lit++; save(); renderLog(); burst(statues[i].x, statues[i].y - 30, "#ffb03a", 18); }
+      if (first) { readFlourish(it); Snd.play("ignite", { pan: Math.max(-0.8, Math.min(0.8, (statues[i].x - player.x) / 150)) }); state.lit++; save(); renderLog(); ayEvent("progress", `Statue ${ROMAN[i]} of the Keep wakes.`, 1); burst(statues[i].x, statues[i].y - 30, "#ffb03a", 18); }
       const s = STAGES[i];
       const pages = [s.body, `The rule of this stage: ${s.rule}`];
       if (first && state.lit === 6) pages.push("All six fires burn. The change is proven, and a person, never an agent, carries it out into the world.");
@@ -3031,7 +3148,7 @@ function interact(it) {
     if (first) readFlourish(it);
     if (first && it.id === "field") chat("The blades of the field stir. Each can now be read.", "#ffd100");
     if (first && it.id === "keep") chat("The statues of the keep stir. Wake them in their order.", "#ffd100");
-    if (it.id === "sword" && !state.swords.includes(it.idx)) { state.swords.push(it.idx); save(); renderLog(); const w = swordTops[it.idx]; burst(w.x, w.y, "#ffb03a", 18); Snd.play("sword", { pan: Math.max(-0.8, Math.min(0.8, (w.x - player.x) / 150)) }); }
+    if (it.id === "sword" && !state.swords.includes(it.idx)) { state.swords.push(it.idx); save(); renderLog(); ayEvent("progress", "A blade of the Field is set alight.", 1); const w = swordTops[it.idx]; burst(w.x, w.y, "#ffb03a", 18); Snd.play("sword", { pan: Math.max(-0.8, Math.min(0.8, (w.x - player.x) / 150)) }); }
     if (it.id === "gate" && state.gateOpen) { const firstEnd = !has("gateFinal"); markRead("gateFinal"); if (firstEnd) setTimeout(showFinale, 700); }
     if (it.id !== "sword" && it.id !== "keep") markRead(it.id);
     if (it.id === "keep" && !has("keep")) { state.read.push("keep"); save(); renderLog(); }
@@ -3052,6 +3169,12 @@ const NPC_REFS = {
     real: "Cihan Delipınar", role: "Software Architect at İBB, Yuvamız İstanbul",
     linkedin: "https://tr.linkedin.com/in/mustafa-cihan-delipinar", linkedinLabel: "linkedin.com/in/mustafa-cihan-delipinar",
   },
+  aybaraq: {
+    name: "Āybarāq", title: "The Moon-Firm Blade",
+    lore: "A warrior who waits by the tavern door for someone worth the road. Boz, his grey falcon, flies where he looks, and the moon keeps his glaive sharp.",
+    real: "Ayberk Bozkuş", role: "CPO at Dring AI",
+    linkedin: "https://tr.linkedin.com/in/ayberkbozkus", linkedinLabel: "linkedin.com/in/ayberkbozkus",
+  },
 };
 function acceptQuest(id) {
   if (accepted(id)) return;
@@ -3068,6 +3191,17 @@ function meet(id) {
 
 // ---------- conversation band ----------
 const TALK_TREES = {
+  aybaraq: () => {
+    if (!ayReady()) return { start: "a", nodes: { a: { text: "The road waits for one who carries a trial. Speak with the burning one by the hearth first." } } };
+    return { start: "a", nodes: {
+      a: { text: "Āybarāq. The old fire says you carry the Trial of the Factory. Boz has watched you since you walked in.", next: "b" },
+      b: { text: "The realm is wide and the dark has teeth. I do not hunt; I watch the road and keep you standing. Shall we ride?", choices: [
+        { label: "Ride with me", next: "yes", act: () => allyJoin() },
+        { label: "Not yet" },
+      ] },
+      yes: { text: "Then walk. I will be behind you, where the danger usually is." },
+    } };
+  },
   gehan: () => {
     const done = state.swords.length >= 8, took = accepted("field") || state.swords.length > 0;
     if (done) return { start: "a", nodes: {
@@ -3105,13 +3239,14 @@ const TALK_TREES = {
       more: { text: "Six hooded statues guard the Keep. Each is a specialist: one who finds the failure, one who judges the tests, one who mends the words, and more. Wake them in order and you will learn how a change is proven.", choices: [
         { label: "Accept the trial", next: "yes", act: () => acceptQuest("keep") },
       ], must: true },
-      yes: { text: "Good. Take the door behind you. The night is long, but the road is marked. Come back and tell me when all six burn." },
+      yes: { text: "Good. Take the door behind you. The night is long, but the road is marked. Come back and tell me when all six burn. The moon-warrior by the door has waited long for someone worth the road. Go to him." },
     } };
   },
 };
 let talk = null;
 function talkTo(id) {
   if (talk) return;
+  if (id === "odman" && ayVoice) ayStop("odman");   // one voice at a time
   if (id === "odman" && performance.now() < odCoolUntil) { chat("He will not speak to you yet.", "#bfb398"); return; }
   const tree = TALK_TREES[id]();
   talk = { id, tree, node: tree.start };
@@ -3119,6 +3254,12 @@ function talkTo(id) {
   $("talk").hidden = false; $("hint").hidden = true; $("hint").dataset.t = "";
   $("game").classList.add("reading"); Snd.duck(true); Snd.play("open");
   $("talk-name").textContent = `${NPC_REFS[id].name}, ${NPC_REFS[id].title}`;
+  if (id === "aybaraq" && ayAgent() && !voiceMicDenied && ayReady()) {
+    talkVoiceUI(true); setEmber("connecting"); $("talk-line").textContent = "Āybarāq looks up.";
+    const m = ayMem(); $("talk-you").hidden = !!m.noticed; $("talk-you").textContent = "Your voice goes to ElevenLabs so Āybarāq can hear you.";
+    if (!m.noticed) { m.noticed = true; save(); }
+    ayStart(true); return;
+  }
   if (id === "odman" && voiceAgent() && !voiceMicDenied) { voiceStart(); return; }
   renderTalk();
 }
@@ -3135,9 +3276,9 @@ function renderTalk() {
   $("talk-more").hidden = !!n.choices;
   setTimeout(() => { const f = list.querySelector("button"); if (f) try { f.focus({ preventScroll: true }); } catch (e) {} }, 30);
 }
-function talkNext() { if (!talk || voice) return; const n = talk.tree.nodes[talk.node]; if (n.choices) return; if (!n.next) { closeTalk(); return; } talk.node = n.next; Snd.play("page"); renderTalk(); }
+function talkNext() { if (!talk || voice || (ayVoice && ayVoice.inTalk)) return; const n = talk.tree.nodes[talk.node]; if (n.choices) return; if (!n.next) { closeTalk(); return; } talk.node = n.next; Snd.play("page"); renderTalk(); }
 function talkChoose(i) {
-  if (!talk || voice) return; const n = talk.tree.nodes[talk.node]; if (!n.choices || !n.choices[i]) return;
+  if (!talk || voice || (ayVoice && ayVoice.inTalk)) return; const n = talk.tree.nodes[talk.node]; if (!n.choices || !n.choices[i]) return;
   const ch = n.choices[i]; Snd.play("click");
   if (ch.act) ch.act();
   if (!ch.next) { closeTalk(); return; }
@@ -3155,12 +3296,16 @@ function drawTalkPortrait(t) {
   const rg = g.createRadialGradient(24, 26, 2, 24, 26, 26); rg.addColorStop(0, "rgba(255,140,40,.35)"); rg.addColorStop(1, "rgba(255,140,40,0)"); g.fillStyle = rg; g.fillRect(0, 0, 48, 48);
   if (talk.id === "odman") drawOdman(g, 24, 80, t, 2);
   if (talk.id === "gehan") drawGehan(g, 24, 90, t, 2);
+  if (talk.id === "aybaraq") drawAybaraq(g, 24, 62, t, 2, { dir: "down", perch: true });
 }
 // ---------- Od-Man's voice (ElevenLabs Conversational AI) ----------
 // Only public agent ids live here. Each agent accepts its own origin only; the API key stays in .env for tools/agent.py.
 const VOICE_AGENTS = { "realm.localhost": "agent_9501m3jcjj5be4ktrexstjm5k1mq", "azizcanyalcin.github.io": "agent_3601m3kgyskber4948w31yeyh660" };
 const VOICE_SDK = "https://cdn.jsdelivr.net/npm/@elevenlabs/client@1.25.0/dist/lib.iife.js";
 // tests pass their own object (window.__VOICE_T) and may change it mid-run
+// ElevenLabs refuses new sessions once the plan's credits are spent
+const VOICE_QUOTA_LINE = "My voice is spent — the ElevenLabs credits are used up.";
+const isQuotaError = e => /quota|credits/i.test(String(e && e.message || e));
 const VOICE_T = window.__VOICE_T || { farewell: 270, dismissWait: 10, cool: 60 };
 const voiceAgent = () => window.__VOICE_AGENT_ID !== undefined ? window.__VOICE_AGENT_ID : VOICE_AGENTS[location.hostname] || "";
 const OD_PLACES = { rest: 0, throne: 1, keep: 2, mere: 3, grove: 4, field: 5, gate: 6 };
@@ -3271,7 +3416,7 @@ function odVoiceVars() {
 }
 // v3 audio tags such as [amused] steer the voice; the subtitle shows only the words
 const odSpoken = t => String(t || "").replace(/\[[^\]]*\]/g, "").replace(/\s+/g, " ").trim();
-function setEmber(s) { const el = $("talk-ember"); el.dataset.s = s; el.textContent = s === "connecting" ? "Od-Man stirs, listening…" : s === "listening" ? "He listens" : "He speaks"; }
+function setEmber(s) { const el = $("talk-ember"), who = talk && talk.id === "aybaraq" ? "Āybarāq" : "Od-Man"; el.dataset.s = s; el.textContent = s === "connecting" ? `${who} stirs, listening…` : s === "listening" ? "He listens" : "He speaks"; }
 function talkVoiceUI(on) {
   $("talk").classList.toggle("voice", on);
   $("talk-choices").replaceChildren(); $("talk-more").hidden = on;
@@ -3305,7 +3450,7 @@ async function voiceStart() {
       onDisconnect: d => { if (voice !== v) return; if (d && d.reason === "error") voiceFallback("The fire gutters…", true); else voiceEnd(); },
       onError: () => {},
     });
-  } catch (e) { if (voice === v) voiceFallback("My voice is spent for tonight, traveller.", false); return; }
+  } catch (e) { if (voice === v) voiceFallback(isQuotaError(e) ? VOICE_QUOTA_LINE : "My voice is spent for tonight, traveller.", false); return; }
   if (voice !== v) { try { conv.endSession(); } catch (e) {} return; }
   v.conv = conv;
 }
@@ -3333,8 +3478,8 @@ function voiceFallback(msg, toMust) {
   if (msg) { tree.nodes.__v = { text: msg, next: target, must: !!tree.nodes[target].must }; talk.node = "__v"; }
   renderTalk();
 }
-document.addEventListener("visibilitychange", () => { if (document.hidden && voice) voiceEnd(); });
-addEventListener("pagehide", () => { if (voice) voiceEnd(); });
+document.addEventListener("visibilitychange", () => { if (document.hidden && voice) voiceEnd(); if (document.hidden && ayVoice) ayStop("hidden"); });
+addEventListener("pagehide", () => { if (voice) voiceEnd(); if (ayVoice) ayStop("hidden"); });
 // an ember ring over a marked place, drawn in map pixels on the minimap and the world map; fog is not lifted
 function drawMark(g, t, r) {
   if (!state.mark || !(state.mark in OD_PLACES)) return;
@@ -3342,7 +3487,315 @@ function drawMark(g, t, r) {
   g.strokeStyle = `rgba(255,150,50,${1 - p})`; g.lineWidth = r * 0.4; g.beginPath(); g.arc(x, y, r * (1.2 + p * 2), 0, Math.PI * 2); g.stroke();
   g.fillStyle = "#ff9a3a"; g.beginPath(); g.arc(x, y, r * 0.6, 0, Math.PI * 2); g.fill();
 }
-$("talk-leave").addEventListener("click", e => { e.stopPropagation(); voiceEnd(); });
+$("talk-leave").addEventListener("click", e => { e.stopPropagation(); if (ayVoice && ayVoice.inTalk) ayStop("user"); else voiceEnd(); });
+
+// ---------- Āybarāq: companion ----------
+const ALLY_HP = 60, ALLY_SPEED = 80;
+const ally = { joined: false, x: AYB.x, y: AYB.y, dir: "down", hp: ALLY_HP, order: "follow", target: null, downT: 0, stuckT: 0, anim: 0, swingT: -1, cd: 0,
+  charges: 2, shieldT: 0, shieldHP: 0, path: null, scoutT: 0, scoutTo: null, mark: null, moving: false };
+function ayMem() {
+  const m = state.aymem = state.aymem && typeof state.aymem === "object" && !Array.isArray(state.aymem) ? state.aymem : {};
+  if (!Array.isArray(m.auto)) m.auto = []; if (!Array.isArray(m.notes)) m.notes = [];
+  if (!Number.isInteger(m.visits) || m.visits < 0) m.visits = 0;
+  return m;
+}
+const allyBlocked = (x, y) => inTav(x, y) ? tavBlocked(x, y, 4, 3) : blockedPx(x, y);
+// drop him on a free spot near (x, y), searching outward
+function allyPlace(x, y) {
+  ally.path = null; if (ally.order === "scout") { ally.order = "follow"; ally.scoutT = 0; }   // any road he was on is stale now
+  for (let r = 0; r <= 40; r += 4) for (let k = 0; k < 8; k++) {
+    const a = k * Math.PI / 4, px = x + Math.cos(a) * r - (r ? 0 : 14), py = y + Math.sin(a) * r;
+    if (!allyBlocked(px, py)) { ally.x = px; ally.y = py; ally.stuckT = 0; return; }
+  }
+  ally.x = x; ally.y = y;
+}
+function allyJoin() {
+  ally.joined = true; ally.order = "follow"; ally.hp = ALLY_HP; ally.downT = 0; ally.path = null;
+  state.ally = { joined: true }; save(); allyPlace(player.x - 16, player.y);
+  meet("aybaraq");
+}
+function allyLeave(reason, quiet) {
+  ally.joined = false; ally.path = null; ally.mark = null; state.ally = { joined: false }; save();
+  ally.x = AYB.x; ally.y = AYB.y;
+  if (!quiet) chat("Āybarāq turns back toward the tavern.", "#b8c4e8");
+  if (reason) { const m = ayMem(); m.auto = m.auto.filter(x => !x.startsWith("You parted ways")).concat(`You parted ways: ${String(reason).slice(0, 100)}.`).slice(-12); save(); }
+}
+const AY_ORDERS = ["follow", "close", "hold", "scout"];
+const ayQ = { items: [], sent: [], last: {}, t: 0 };
+function allyOrder(order) {
+  if (!AY_ORDERS.includes(order)) return "error: unknown order";
+  if (!ally.joined) return "error: not riding with the traveller";
+  ally.order = order; ally.path = null;
+  if (order === "scout") {
+    const a = DIR_ANG[player.dir] || 0; ally.scoutT = 6; ally.scoutFrom = [ally.x, ally.y];
+    ally.scoutTo = [player.x + Math.cos(a) * 10 * TS, player.y + Math.sin(a) * 10 * TS];
+  }
+  return "ok";
+}
+function scoutReport() {
+  const [sx, sy] = ally.scoutTo, seen = {};
+  mobs.forEach(m => { if (!m.dead && Math.hypot(m.x - sx, m.y - sy) < 6 * TS) seen[MOB[m.type].name] = (seen[MOB[m.type].name] || 0) + 1; });
+  const near = LANDMARKS.map(l => [l, Math.hypot(l.tx * TS + 8 - sx, l.ty * TS + 8 - sy)]).sort((a, b) => a[1] - b[1])[0];
+  const foes = Object.entries(seen).map(([n, c]) => `${c} ${n}${c > 1 ? "s" : ""}`).join(", ") || "no foes";
+  return `Scout report: ${foes} ahead; nearest place ${near[0].name}.`;
+}
+function tilePath(fx, fy, tx, ty) {
+  const W = MW, H = MH, s = Math.floor(fy / TS) * W + Math.floor(fx / TS), goal = Math.floor(ty / TS) * W + Math.floor(tx / TS);
+  const prev = new Int32Array(W * H).fill(-1), q = [s]; prev[s] = s;
+  const open = i => { const x = i % W, y = (i / W) | 0; return !blockedPx(x * TS + 8, y * TS + 8); };
+  for (let h = 0; h < q.length; h++) {
+    const c = q[h]; if (c === goal) break;
+    const x = c % W, y = (c / W) | 0;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = x + dx, ny = y + dy, n = ny * W + nx;
+      if (nx < 0 || ny < 0 || nx >= W || ny >= H || prev[n] !== -1 || (!open(n) && n !== goal)) continue;
+      prev[n] = c; q.push(n);
+    }
+  }
+  if (prev[goal] === -1) return null;
+  const out = []; for (let c = goal; c !== s; c = prev[c]) out.push([(c % W) * TS + 8, ((c / W) | 0) * TS + 8]);
+  return out.reverse();
+}
+function allyGuide(place) {
+  if (!Object.prototype.hasOwnProperty.call(OD_PLACES, place)) return "error: unknown place";
+  if (!ally.joined) return "error: not riding with the traveller";
+  if (inTav(player.x, player.y)) return "error: leave the tavern first";
+  const l = LANDMARKS[OD_PLACES[place]], p = tilePath(ally.x, ally.y, l.tx * TS + 8, l.ty * TS + 8);
+  if (!p) return "error: no road found";
+  ally.path = p; ally.order = "follow"; ally.guideTo = l.name;
+  return "ok";
+}
+const ALLY_DMG = 0.5, ALLY_CD = 1.6;
+function hurtAlly(m, dmg) {
+  if (ally.downT > 0 || ally.inv > 0) return;
+  ally.hp = Math.max(0, ally.hp - dmg); ally.inv = 0.6;
+  if (ally.hp <= 0) { ally.downT = window.__AY_DOWN_S || 20; ally.target = null; if (typeof ayEvent === "function") ayEvent("downed", "Āybarāq is struck down and kneels under the moon.", 0); }
+}
+function allyFight(dt) {
+  ally.inv = Math.max(0, (ally.inv || 0) - dt);
+  if (ally.swingT >= 0 && (ally.swingT += dt / 0.3) >= 1) ally.swingT = -1;
+  // only the foe on the traveller or on him, and never far from the traveller
+  const foe = mobs.filter(m => !m.dead && Math.hypot(m.x - player.x, m.y - player.y) < 2 * TS &&
+      (Math.hypot(m.x - player.x, m.y - player.y) < 14 || Math.hypot(m.x - ally.x, m.y - ally.y) < 14))
+    .sort((a, b) => Math.hypot(a.x - player.x, a.y - player.y) - Math.hypot(b.x - player.x, b.y - player.y))[0] || (ally.mark && !ally.mark.dead && (ally.mark !== boss || boss.active) && Math.hypot(ally.mark.x - player.x, ally.mark.y - player.y) < 2 * TS ? ally.mark : null);   // a mark never pulls him from the traveller
+  const bossNear = boss.active && !state.bossDown && Math.hypot(boss.x - player.x, boss.y - player.y) < 2 * TS;
+  const tgt = foe || (bossNear ? boss : null);
+  if (!tgt) return false;
+  const d = Math.hypot(tgt.x - ally.x, tgt.y - ally.y);
+  if (d > 20) { allyStep(tgt.x, tgt.y, ALLY_SPEED * 1.2, dt); return true; }
+  if (ally.cd <= 0) {
+    ally.cd = ALLY_CD; ally.swingT = 0; const nx = (tgt.x - ally.x) / (d || 1), ny = (tgt.y - ally.y) / (d || 1);
+    ally.dir = Math.abs(nx) > Math.abs(ny) ? (nx > 0 ? "right" : "left") : (ny > 0 ? "down" : "up");
+    if (tgt === boss) boss.stun = Math.max(boss.stun || 0, 0.25);   // draws its attention, no damage
+    else { hitMob(tgt, nx, ny, ALLY_DMG, true); }                    // heavy: the knockback and stun protect the traveller
+    Snd.play("hit", { pan: 0 });
+  }
+  return true;
+}
+let ayWarnT = 0, ayWarnAng = 0;
+function allyUse() { if (!ally.joined) return "error: not riding with the traveller"; if (ally.charges <= 0) return "no charges left — rest at the tavern"; ally.charges--; return ""; }
+function allyShield() { const e = allyUse(); if (e) return e; ally.shieldT = 8; ally.shieldHP = 30; Snd.play("ignite"); return "shielded"; }
+function allyHeal() { const e = allyUse(); if (e) return e; player.hp = Math.min(player.maxHp, player.hp + 40); renderHearts(); burst(player.x, player.y - 14, "#d8e4ff", 20); Snd.play("respawn"); return "healed"; }
+function allyWatch(dt) {
+  ally.shieldT = Math.max(0, ally.shieldT - dt); if (!ally.shieldT) ally.shieldHP = 0;
+  ayWarnT = Math.max(0, ayWarnT - dt);
+  if (!ally.joined || ally.downT > 0 || player.dead || inTav(player.x, player.y)) return;
+  // a foe closing from behind the traveller's facing
+  const face = DIR_ANG[player.dir] || 0;
+  for (const m of mobs) {
+    if (m.dead) continue;
+    const dx = m.x - player.x, dy = m.y - player.y, d = Math.hypot(dx, dy);
+    if (d > 4 * TS || d < 6) continue;
+    let da = Math.atan2(dy, dx) - face; da = Math.atan2(Math.sin(da), Math.cos(da));
+    if (Math.abs(da) > 2.1) { if (!ayWarnT) { ayWarnT = 1.5; ayWarnAng = Math.atan2(dy, dx); const text = `A ${MOB[m.type].name} closes on the traveller from behind.`; if (typeof ayEvent === "function") ayEvent("behind", text, 0); else ayQ.items.push({ kind: "behind", text, prio: 0 }); } break; }
+  }
+  // silent mode: he heals by himself when the traveller is badly hurt
+  const voiced = typeof ayVoice !== "undefined" && ayVoice;
+  if (!voiced && player.hp < player.maxHp * 0.3 && ally.charges > 0) { allyHeal(); chat("Āybarāq's moonlight closes your wounds.", "#b8c4e8"); }
+}
+function allyStep(tx, ty, speed, dt) {
+  const dx = tx - ally.x, dy = ty - ally.y, d = Math.hypot(dx, dy);
+  if (d < 1) { ally.moving = false; return true; }
+  const sp = Math.min(d, speed * dt), vx = dx / d * sp, vy = dy / d * sp; let moved = false;
+  if (!allyBlocked(ally.x + vx, ally.y)) { ally.x += vx; moved = true; }
+  if (!allyBlocked(ally.x, ally.y + vy)) { ally.y += vy; moved = true; }
+  ally.moving = moved; ally.anim += dt;
+  if (Math.abs(vx) > Math.abs(vy)) ally.dir = vx > 0 ? "right" : "left"; else if (Math.abs(vy) > 0.01) ally.dir = vy > 0 ? "down" : "up";
+  ally.stuckT = moved ? 0 : ally.stuckT + dt;
+  return false;
+}
+function updateAlly(dt) {
+  if (ally.mark && (ally.mark.dead || (ally.mark === boss && state.bossDown))) ally.mark = null;
+  if (!ally.joined || player.dead || boat.riding) return;
+  ally.cd = Math.max(0, ally.cd - dt);
+  if (ally.downT > 0) { if ((ally.downT -= dt) <= 0) { ally.downT = 0; ally.hp = ALLY_HP; ayEvent("up", "Āybarāq rises again.", 1); } return; }
+  const dp = Math.hypot(player.x - ally.x, player.y - ally.y);
+  if (ally.order === "scout") {
+    ally.scoutT -= dt; if (!inTav(ally.x, ally.y)) reveal(Math.floor(ally.x / TS), Math.floor(ally.y / TS), 2);
+    const done = allyStep(ally.scoutTo[0], ally.scoutTo[1], ALLY_SPEED * 1.4, dt);
+    if (done || ally.scoutT <= 0 || ally.stuckT > 1) {
+      const text = scoutReport(); ally.order = "follow"; ally.scoutT = 0;
+      if (typeof ayEvent === "function") ayEvent("report", text, 2); else ayQ.items.push({ kind: "report", text, prio: 2 });
+    }
+    return;
+  }
+  if (ally.path && (dp > 12 * TS || inTav(player.x, player.y) !== inTav(ally.x, ally.y))) ally.path = null;   // the traveller went elsewhere: stop guiding
+  if (ally.path) {
+    if (dp > 4 * TS) { ally.moving = false; return; }            // wait for the traveller
+    if (!inTav(ally.x, ally.y)) reveal(Math.floor(ally.x / TS), Math.floor(ally.y / TS), 2);
+    const [wx, wy] = ally.path[0];
+    if (ally.stuckT > 2) { ally.x = wx; ally.y = wy; ally.stuckT = 0; }   // a corner caught him: hop to the next waypoint
+    if (allyStep(wx, wy, ALLY_SPEED, dt) || Math.hypot(wx - ally.x, wy - ally.y) < 3) ally.path.shift();
+    if (!ally.path.length) {
+      ally.path = null; const text = `You have led the traveller to ${ally.guideTo}.`;
+      if (typeof ayEvent === "function") ayEvent("arrive", text, 2); else ayQ.items.push({ kind: "arrive", text, prio: 2 });
+    }
+    return;
+  }
+  // never left behind: stuck, or the player went far away (death, a door, the boat)
+  if (ally.stuckT > 2 || dp > 12 * TS || inTav(player.x, player.y) !== inTav(ally.x, ally.y)) { allyPlace(player.x - 16, player.y); return; }
+  if (ally.order === "hold") { ally.moving = false; return; }
+  if (allyFight(dt)) return;
+  const want = ally.order === "close" ? 0.5 * TS : 1.5 * TS;
+  if (dp > want) allyStep(player.x - Math.sign(player.x - ally.x || 1) * want * 0.7, player.y, dp > 4 * TS ? ALLY_SPEED * 1.6 : ALLY_SPEED, dt);
+  else ally.moving = false;
+}
+// a save where he rides with you brings him back beside you
+if (state.ally && state.ally.joined) { ally.joined = true; allyPlace(player.x - 16, player.y); }
+
+// ---------- Āybarāq: events and panel ----------
+const AY_BARKS = {
+  behind: ["Behind you!", "Your back!", "Turn — behind!"], hurt50: ["You bleed. Mind it.", "Half your fire is gone."], hurt30: ["Fall back!", "You are close to falling."],
+  downed: ["I'm down… hold them off.", "A moment. The moon will raise me."], up: ["On my feet.", "The moon keeps its promise."],
+  boss: ["That one is no hallucination. Careful.", "Model Collapse. Keep moving."], zone: ["New ground. Stay sharp.", "Boz has not seen this place."],
+  place: ["There. Remember the way.", "A place worth the walk."], progress: ["Well struck.", "The realm takes notice."],
+  report: ["Boz is back."], arrive: ["We are here.", "This is the place."],
+};
+const AY_MINOR = ["zone", "place", "progress", "up"];   // told to him as context, never asking for a reply
+const AY_GAP = () => (window.__AY_GAP_S || 6), AY_SAME = () => (window.__AY_SAME_S || 30);
+let ayLineT = 0;
+function aySay(text, who = "ay") {
+  $("aypanel").hidden = false;
+  if (who === "you") { $("ay-you").textContent = "You: " + text; return; }
+  $("ay-line").textContent = odSpoken(text); ayLineT = 5;
+}
+function ayEvent(kind, text, prio) {
+  if (!ally.joined) return;
+  if (ayQ.last[kind] && time - ayQ.last[kind] < AY_SAME()) return;
+  if (ayQ.items.some(e => e.kind === kind)) return;
+  ayQ.items.push({ kind, text, prio, at: time });
+}
+function ayTick(dt) {
+  ayLineT = Math.max(0, ayLineT - dt);
+  if (!ayLineT && !(typeof ayVoice !== "undefined" && ayVoice)) $("ay-line").textContent = "";
+  $("aypanel").hidden = !ally.joined;
+  if (ally.joined && !ayVoice && ayAgent() && !$("ay-state").textContent) ayState("asleep");
+  if (ally.joined && !inTav(player.x, player.y)) {
+    const seen = state.aySeen || (state.aySeen = []);
+    for (const l of LANDMARKS) if (!seen.includes(l.name) && Math.hypot(l.tx * TS + 8 - player.x, l.ty * TS + 8 - player.y) < 5 * TS) { seen.push(l.name); save(); ayEvent("place", `${l.name} comes into sight.`, 1); }
+  }
+  ayQ.t = Math.max(0, ayQ.t - dt);
+  ayQ.items = ayQ.items.filter(x => time - x.at < 8);   // stale events are dropped
+  if (!ayQ.items.length) return;
+  ayQ.items.sort((a, b) => a.prio - b.prio || a.at - b.at);
+  const v = ayVoice, e = ayQ.items[0], minor = AY_MINOR.includes(e.kind);
+  // danger shows at once as a free text line, even while he or the traveller is talking
+  if (e.prio === 0 && !e.barked) { e.barked = true; const b = AY_BARKS[e.kind]; if (b) aySay(b[Math.floor(Math.random() * b.length)]); }
+  if (ayQ.t > 0) return;
+  if (v && v.conv) {
+    // minor news only informs him (no reply); anything he should answer waits until he is quiet and the traveller is not speaking
+    if (!minor && (v.mode === "speaking" || time - (v.userAt ?? -99) < 1.5)) return;
+    try { if (minor) v.conv.sendContextualUpdate("[GAME] " + e.text); else v.conv.sendUserMessage("[GAME] " + e.text); } catch (err) {}
+  } else if (!e.barked) { const b = AY_BARKS[e.kind]; if (b) aySay(b[Math.floor(Math.random() * b.length)]); }
+  ayQ.items.shift(); ayQ.last[e.kind] = time; ayQ.t = AY_GAP(); ayQ.sent.push(e);
+}
+
+// ---------- Āybarāq: voice ----------
+const AY_AGENTS = { "realm.localhost": "agent_5001m3kvvfhze4781mt60ddspeqn", "azizcanyalcin.github.io": "" };
+const ayAgent = () => window.__AY_AGENT_ID !== undefined ? window.__AY_AGENT_ID : AY_AGENTS[location.hostname] || "";
+const AY_T = () => window.__AY_T || { cap: 600, nudge: 570 };
+let ayVoice = null;
+// once a session starts closing (rest_voice, part_ways) its later calls are refused too, though the socket lingers a moment
+function ayTools(v) { const t = {}; for (const k in AY_TOOLS) t[k] = p => ayVoice === v && !v.closing ? AY_TOOLS[k](p || {}) : "refused: the talk is over"; return t; }
+function ayVars() {
+  const m = ayMem();
+  const mem = [`Times the traveller has spoken with you before: ${m.visits}.`].concat(m.notes.length ? ["Your notes:", ...m.notes.map(x => "- " + x)] : ["You have never ridden with this traveller."]).join("\n");
+  return { trial: accepted("keep") ? "taken" : "not taken", joined: ally.joined ? "yes" : "no", hp: String(Math.round(player.hp)), zone: inTav(player.x, player.y) ? "The Ember Tavern" : zoneName, charges: String(ally.charges), memory: mem };
+}
+function ayState(s) { $("ay-state").textContent = s === "asleep" ? "asleep · T: wake his voice" : s; }
+async function ayStart(inTalk) {
+  if (ayVoice || !ayAgent()) return false;
+  if (voice) voiceEnd();                       // one voice at a time
+  const v = ayVoice = { conv: null, mode: "speaking", timers: [], inTalk };
+  ayState("waking…");
+  try { const s = await navigator.mediaDevices.getUserMedia({ audio: true }); s.getTracks().forEach(t => t.stop()); } catch (e) { if (ayVoice === v) ayStop("mic"); return false; }
+  if (ayVoice !== v) return false;
+  let sdk; try { sdk = await loadVoiceSdk(); } catch (e) { if (ayVoice === v) ayStop("sdk"); return false; }
+  if (ayVoice !== v) return false;
+  let conv;
+  try {
+    conv = await sdk.Conversation.startSession({
+      agentId: ayAgent(), connectionType: "websocket", dynamicVariables: ayVars(),
+      overrides: { agent: { firstMessage: inTalk ? (ayReady() ? "Āybarāq. You carry the old fire's trial, I see." : "The road waits for one who carries a trial.") : "I'm here." } },
+      clientTools: ayTools(v),
+      onConnect: () => { if (ayVoice !== v) return; const m = ayMem(); m.visits++; save(); ayState("listening");
+        v.timers.push(setTimeout(() => { if (ayVoice === v && v.conv) v.conv.sendUserMessage("[GAME] Your voice rests soon. Say one short line."); }, AY_T().nudge * 1000));
+        v.timers.push(setTimeout(() => { if (ayVoice === v) ayStop("cap"); }, AY_T().cap * 1000)); },
+      onMessage: ({ source, message }) => { if (ayVoice !== v) return;
+        if (v.inTalk && talk && talk.id === "aybaraq") { if (source === "ai") $("talk-line").textContent = odSpoken(message); else { $("talk-you").hidden = false; $("talk-you").textContent = "You: " + message; } }
+        else aySay(message, source === "ai" ? "ay" : "you");
+        if (source !== "ai") v.userAt = time; },
+      onModeChange: ({ mode }) => { if (ayVoice !== v) return; v.mode = mode; if (!v.inTalk) { ayState(mode === "speaking" ? "speaking" : "listening"); Snd.duck(mode === "speaking"); } else setEmber(mode); },
+      onDisconnect: d => { if (ayVoice !== v) return; ayStop(d && d.reason === "error" ? "drop" : "agent"); },
+      onError: () => {},
+    });
+  } catch (e) { if (ayVoice === v) ayStop(isQuotaError(e) ? "quota" : "refused"); return false; }
+  if (ayVoice !== v) { try { conv.endSession(); } catch (e) {} return false; }
+  v.conv = conv; return true;
+}
+function ayStop(reason) {
+  const v = ayVoice; ayVoice = null; if (!v) return;
+  v.timers.forEach(clearTimeout); if (v.conv) try { v.conv.endSession(); } catch (e) {}
+  if (v.inTalk && talk && talk.id === "aybaraq") {
+    if (ally.joined || ["user", "odman", "hidden", "reset", "parted"].includes(reason)) { talkVoiceUI(false); closeTalk(); }
+    else {  // scripted fallback in the tavern
+      talkVoiceUI(false); const tree = talk.tree = TALK_TREES.aybaraq(); talk.node = tree.start;
+      if (reason === "quota") { tree.nodes.__v = { text: VOICE_QUOTA_LINE, next: tree.start }; talk.node = "__v"; }
+      renderTalk();
+    }
+  }
+  if (!talk) Snd.duck(false);
+  ayState(reason === "quota" ? "voice unavailable" : "asleep");
+  if (reason === "quota") aySay(VOICE_QUOTA_LINE);
+  if (reason === "drop" || reason === "refused" || reason === "mic" || reason === "sdk") { if (ally.joined) aySay("His voice is lost in the wind — T to call him."); }
+  if (reason === "cap") aySay("My voice rests now, traveller. My blade does not.");
+}
+function ayWake() { if (ally.joined && !ayVoice && !talk) ayStart(false); }
+function allyFocus(pick) {
+  if (!AY_PICKS.includes(pick)) return "error: unknown pick";
+  const live = mobs.filter(m => !m.dead && Math.hypot(m.x - player.x, m.y - player.y) < 6 * TS);
+  let m = null;
+  if (pick === "boss") m = boss.active && !state.bossDown ? boss : null;
+  else if (pick === "nearest") m = live.sort((a, b) => Math.hypot(a.x - player.x, a.y - player.y) - Math.hypot(b.x - player.x, b.y - player.y))[0];
+  else if (pick === "strongest") m = live.sort((a, b) => MOB[b.type].dmg - MOB[a.type].dmg)[0];
+  else m = live.filter(x => Math.hypot(x.x - player.x, x.y - player.y) < 14)[0];
+  if (!m) return "none in sight";
+  ally.mark = m; return "marked";
+}
+function ayNote(text) { const m = ayMem(), t = String(text == null ? "" : text).trim().slice(0, 140); if (!t) return false; m.notes = m.notes.filter(x => x !== t).concat(t).slice(-12); save(); return true; }
+function drawAyMark(x, y, t) { ctx.strokeStyle = `rgba(210,225,255,${0.55 + 0.3 * Math.sin(t * 6)})`; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(Math.round(x) + 0.5, Math.round(y) + 0.5, 6, 2.5, 0, 0, Math.PI * 2); ctx.stroke(); }
+const AY_PICKS = ["nearest", "strongest", "attacker", "boss"];
+const AY_TOOLS = {
+  join_party: () => { if (!accepted("keep")) return "refused: the trial is not yours yet"; if (ally.joined) return "already riding"; allyJoin(); const v = ayVoice; if (v) { v.inTalk = false; talkVoiceUI(false); closeTalk(); ayState("listening"); aySay("Headphones help — the realm's sounds can reach your mic."); } return "joined"; },
+  set_order: ({ order } = {}) => allyOrder(order),
+  guide_to: ({ place } = {}) => allyGuide(place),
+  focus_target: ({ pick } = {}) => allyFocus(pick),
+  shield: () => allyShield(),
+  heal: () => allyHeal(),
+  rest_voice: () => { if (ayVoice) ayVoice.closing = true; setTimeout(() => ayStop("rest"), 0); return "resting"; },
+  part_ways: ({ reason } = {}) => { const r = String(reason == null ? "" : reason).slice(0, 140); if (ayVoice) ayVoice.closing = true; setTimeout(() => { ayStop("parted"); allyLeave(r); }, 0); return "parting"; },
+  remember: ({ note } = {}) => ayNote(note) ? "remembered" : "error: empty note",
+};
 
 // ---------- the Bestiary book ----------
 function openBestiary() {
@@ -3367,11 +3820,11 @@ function fadeThen(cb) {
 }
 function exitTavern() {
   Snd.play("close");
-  fadeThen(() => { player.x = TAV_EXIT[0]; player.y = TAV_EXIT[1]; player.dir = "down"; state.scene = "realm"; state.pos = [player.x, player.y]; save(); renderLog(); });
+  fadeThen(() => { player.x = TAV_EXIT[0]; player.y = TAV_EXIT[1]; player.dir = "down"; state.scene = "realm"; state.pos = [player.x, player.y]; save(); renderLog(); if (ally.joined) allyPlace(player.x - 16, player.y); });
 }
 function enterTavern() {
   Snd.play("open");
-  fadeThen(() => { player.x = TAV_SPAWN[0]; player.y = TAV_SPAWN[1] - 6; player.dir = "up"; state.scene = "tavern"; state.pos = [player.x, player.y]; save(); });
+  fadeThen(() => { player.x = TAV_SPAWN[0]; player.y = TAV_SPAWN[1] - 6; player.dir = "up"; state.scene = "tavern"; state.pos = [player.x, player.y]; save(); ally.charges = 2; if (ally.joined) allyPlace(player.x - 16, player.y); });
 }
 function closeMenu() { $("menu").hidden = true; $("game").classList.remove("paused"); }
 function toggleMenu() { if (!started) return; const m = $("menu"); m.hidden = !m.hidden; $("game").classList.toggle("paused", !m.hidden); Snd.play("menu"); if (m.hidden) focusGame(); if (!m.hidden) { $("wmap").hidden = true; $("mn-resume").focus(); } }
@@ -3392,7 +3845,7 @@ $("mn-full").addEventListener("click", toggleFull);
 let resetArm = false;
 $("mn-reset").addEventListener("click", e => {
   if (!resetArm) { resetArm = true; e.target.textContent = "Click again to confirm"; setTimeout(() => { resetArm = false; e.target.textContent = "Reset Progress"; }, 3000); return; }
-  Object.assign(state, { shards: [], lit: 0, read: [], gateOpen: false, swords: [], explored: "", zones: [], pos: null, bossDown: false, scene: "tavern", quests: [], met: [], odmem: null, mark: null }); boon = null; renderBoon(); odCoolUntil = 0; bossReset(); player.x = TAV_SPAWN[0]; player.y = TAV_SPAWN[1]; boat.riding = false; boat.x = BOAT_HOME[0]; boat.y = BOAT_HOME[1]; boat.vx = boat.vy = 0; state.boatPos = null;
+  Object.assign(state, { shards: [], lit: 0, read: [], gateOpen: false, swords: [], explored: "", zones: [], pos: null, bossDown: false, scene: "tavern", quests: [], met: [], odmem: null, mark: null, ally: null, aymem: null }); if (ayVoice) ayStop("reset"); allyLeave(null, true); state.ally = null; boon = null; renderBoon(); odCoolUntil = 0; bossReset(); player.x = TAV_SPAWN[0]; player.y = TAV_SPAWN[1]; boat.riding = false; boat.x = BOAT_HOME[0]; boat.y = BOAT_HOME[1]; boat.vx = boat.vy = 0; state.boatPos = null;
   explored.fill(0); lastTX = -1; miniDirty = true; shards.forEach(s => s.got = false); save();
   lastXP = null; lastLevel = 1; renderLog();
   e.target.textContent = "Reset Progress"; resetArm = false; closeMenu();
@@ -3497,6 +3950,7 @@ addEventListener("keydown", e => {
   if (!$("finale").hidden) { if (["Escape", "KeyE", "Space", "Enter"].includes(e.code) && tag !== "BUTTON" && tag !== "A") { e.preventDefault(); if (!$("fin-card").hidden) closeFinale(); else finaleCard(); } return; }
   if (talk) {
     if (voice) { if (e.code === "Escape") { e.preventDefault(); voiceEnd(); } return; }
+    if (ayVoice && ayVoice.inTalk) { if (e.code === "Escape") { e.preventDefault(); ayStop("user"); } return; }
     if (e.code === "Escape") { e.preventDefault(); if (!talk.tree.nodes[talk.node].must) closeTalk(); }
     else if (e.code === "KeyE" || e.code === "Space" || (e.code === "Enter" && tag !== "BUTTON")) { e.preventDefault(); talkNext(); }
     else if (/^Digit[1-3]$/.test(e.code)) { e.preventDefault(); talkChoose(+e.code.slice(5) - 1); }
@@ -3517,6 +3971,7 @@ addEventListener("keydown", e => {
   }
   if (dlg && (e.code === "ArrowLeft" || e.code === "KeyA")) { e.preventDefault(); pageBack(); return; }
   if (dlg && (e.code === "ArrowRight" || e.code === "KeyD")) { e.preventDefault(); advance(); return; }
+  if (e.code === "KeyT") { ayWake(); return; }
   if (e.code === "KeyM") { toggleMap(); return; }
   if (e.code === "KeyL") { toggleTracker(); return; }
   if (e.code === "KeyB") { openBestiary(); return; }
@@ -3794,6 +4249,7 @@ function updateMobs(dt) {
       if (m.type === "hallu") vy += Math.sin(m.t * 3) * 10;
       moveMob(m, vx, vy, dt); m.dir = vx < 0 ? -1 : 1;
       if (d < 10 && m.cd <= 0 && player.inv <= 0) { m.cd = 0.9; hurtPlayer(m, dx, dy); }
+      if (ally.joined && ally.downT <= 0 && Math.hypot(ally.x - m.x, ally.y - m.y) < 10 && m.cd <= 0) { m.cd = 0.9; hurtAlly(m, MOB[m.type].dmg / 2); }
     } else {
       m.wT -= dt;
       if (m.wT <= 0 || Math.hypot(m.wx - m.x, m.wy - m.y) < 3) {
@@ -3861,8 +4317,11 @@ function bossReset() {
 }
 function hurtBy(name, dx, dy, dmg = 10) {
   if (player.inv > 0 || player.dead) return;
+  if (ally.shieldT > 0 && ally.shieldHP > 0) { const a = Math.min(ally.shieldHP, dmg); ally.shieldHP -= a; dmg -= a; if (dmg <= 0) { player.inv = 0.4; Snd.play("clink"); return; } }
   const d = Math.hypot(dx, dy) || 1;
   player.hp = Math.max(0, player.hp - dmg); player.inv = 0.9; player.lastHit = time; player.regenT = 0;
+  { const now = player.hp / player.maxHp, was = (player.hp + dmg) / player.maxHp;
+    if (was >= 0.3 && now < 0.3) ayEvent("hurt30", "The traveller is badly hurt.", 0); else if (was >= 0.5 && now < 0.5) ayEvent("hurt50", "The traveller's health drops below half.", 0); }
   player.kvx = -dx / d * 150; player.kvy = -dy / d * 150;
   renderHearts(); Snd.play("hurt");
   const f = $("hurtflash"); f.hidden = true; void f.offsetWidth; f.hidden = false;
@@ -3899,7 +4358,7 @@ function updateBoss(dt) {
   const homeD = Math.hypot(player.x - BOSS_HOME[0], player.y - BOSS_HOME[1]);
   if (!boss.active) {
     if (!player.dead && !boat.riding && homeD < 118) {
-      boss.active = true; showBossBar(true); Snd.play("bossWake"); boss.castT = 1.8;
+      boss.active = true; showBossBar(true); Snd.play("bossWake"); boss.castT = 1.8; ayEvent("boss", "Model Collapse, guardian of the gate, rises.", 0);
       showBanner("Model Collapse", "Guardian of the Gate", "pvp");
       chat("Model Collapse rises before the gate!", "#e060ff");
     } else { boss.x += (BOSS_HOME[0] - boss.x) * Math.min(1, dt * 2); boss.y += (BOSS_HOME[1] - boss.y) * Math.min(1, dt * 2); }
@@ -4012,6 +4471,7 @@ function boatDisembark() {
   boat.riding = false; boat.vx = boat.vy = 0;
   player.x = best[0]; player.y = best[1]; player.inv = Math.max(player.inv, 0.6);
   state.boatPos = [Math.round(boat.x), Math.round(boat.y)]; state.pos = [Math.round(player.x), Math.round(player.y)]; save();
+  if (ally.joined) allyPlace(player.x - 16, player.y);
   Snd.play("boatLand");
 }
 function updateBoat(dt) {
@@ -4089,6 +4549,7 @@ function update(dt) {
     const l = LANDMARKS[OD_PLACES[state.mark]];
     if (!inTav(player.x, player.y) && Math.hypot(player.x - (l.tx * TS + 8), player.y - (l.ty * TS + 8)) < 3 * TS) { state.mark = null; save(); }
   }
+  updateAlly(dt); allyWatch(dt); ayTick(dt);
   if (boon && started && !dlg && !uiBlocked()) { boon.t -= dt; if (boon.t <= 0) { boon = null; chat("The boon fades.", "#bfb398"); } renderBoon(); }
 
   // shards
@@ -4096,7 +4557,7 @@ function update(dt) {
     if (s.got) return;
     // on land the shard is taken the moment it touches the body, head to boots, not when the feet reach it
     if (s.water ? !(boat.riding && Math.hypot(s.x - boat.x, s.y - boat.y) < 26) : !(Math.abs(s.x - player.x) < 9 && s.y - 10 > player.y - 26 && s.y - 10 < player.y + 4)) return;
-    s.got = true; state.shards.push(s.i); save(); renderLog();
+    s.got = true; state.shards.push(s.i); save(); renderLog(); ayEvent("progress", "The traveller picks up a voice shard.", 1);
     burst(s.x, s.y - 8, "#b8b0ff", 22); Snd.play("shard");
     const a = AGENTS[s.i];
     toast(a.name, a.d);
@@ -4114,7 +4575,7 @@ function update(dt) {
   const z = tavNow ? { name: "The Ember Tavern" } : ZONES.find(z => z.test(tx, ty));
   const zn = z ? z.name : "The Moss Wood";
   $("game").classList.toggle("indoors", tavNow);
-  if (zn !== zoneName) { zoneName = zn; Snd.zone(zn); $("mm-zone").textContent = zn; $("wm-zone").textContent = zn; if (z && started) banner(zn); }
+  if (zn !== zoneName) { zoneName = zn; Snd.zone(zn); $("mm-zone").textContent = zn; $("wm-zone").textContent = zn; if (z && started) { banner(zn); ayEvent("zone", `The traveller enters ${zn}.`, 1); } }
 
   // dialog typing
   if (dlg) {
@@ -4212,6 +4673,8 @@ function render() {
   if (!state.bossDown && inView(boss.x, boss.y, 50, cx, cy)) list.push({ base: boss.y, bossE: true });
   if (inView(ODMAN.x, ODMAN.y, 60, cx, cy)) list.push({ base: ODMAN.y, od: true });
   if (inView(GEHAN.x, GEHAN.y, 60, cx, cy)) list.push({ base: GEHAN.y, ge: true });
+  if (tav && !ally.joined && inView(AYB.x, AYB.y, 40, cx, cy)) list.push({ base: AYB.y, ay: true });
+  if (ally.joined && inView(ally.x, ally.y, 40, cx, cy)) list.push({ base: ally.y, al: true });
   shards.forEach(sh => { if (!sh.got && inView(sh.x, sh.y, 16, cx, cy)) list.push({ base: sh.y, shard: sh }); });
   if (tav) for (const n of TAV_NPCS) list.push({ base: n.y, tn: n });
   if (inView(boat.x, boat.y, 30, cx, cy)) list.push({ base: boat.y + 10, boat: true });
@@ -4230,6 +4693,7 @@ function render() {
       else if (bladeFade > 0 && sideView()) drawBlades(cx, cy, bladeFade, "back");
       if (armed && facesAway()) drawHeld(cx, cy, breath);
       ctx.drawImage(cv, Math.round(player.x - 9 - cx), Math.round(player.y - 25 - cy - bob));
+      if (ally.shieldT > 0) { ctx.strokeStyle = `rgba(200,220,255,${0.45 + 0.3 * Math.sin(t * 8)})`; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(Math.round(player.x - cx) + 0.5, Math.round(player.y - 11 - cy) + 0.5, 11, 15, 0, 0, Math.PI * 2); ctx.stroke(); }
       if (bladeFade > 0 && !facesAway()) drawBlades(cx, cy, bladeFade, sideView() ? "front" : "all");
       if (armed && !facesAway()) drawHeld(cx, cy, breath);
     } else if (e.tn) drawTavNpc(e.tn, cx, cy, t);
@@ -4241,10 +4705,12 @@ function render() {
       if (Math.sin(t * 4 + sh.i * 2) > 0.8) { ctx.fillStyle = "#ffffff"; ctx.fillRect(x + 4, y - 6, 1, 3); ctx.fillRect(x + 3, y - 5, 3, 1); }
     }
     else if (e.ge) drawGehan(ctx, Math.round(GEHAN.x - cx), Math.round(GEHAN.y - cy), t, 1);
+    else if (e.al) drawAybaraq(ctx, Math.round(ally.x - cx), Math.round(ally.y - cy), t, 1, { dir: ally.dir, walk: ally.moving ? 1 + (Math.floor(ally.anim / 0.16) & 1) : 0, swing: ally.swingT, down: ally.downT > 0 });
+    else if (e.ay) { const x = Math.round(AYB.x - cx), y = Math.round(AYB.y - cy); if (ayReady()) drawAyMotes(ctx, x, y, t); drawAybaraq(ctx, x, y, t, 1, { dir: "down", sit: !ayReady(), perch: ayReady() }); }
     else if (e.od) drawOdman(ctx, Math.round(ODMAN.x - cx), Math.round(ODMAN.y - cy), t, 1);
-    else if (e.bossE) drawBoss(cx, cy, t);
+    else if (e.bossE) { drawBoss(cx, cy, t); if (ally.mark === boss) drawAyMark(boss.x - cx, boss.y - 46 - cy, t); }
     else if (e.boat) drawBoat(cx, cy, t);
-    else if (e.m) drawMob(e.m, cx, cy, t);
+    else if (e.m) { drawMob(e.m, cx, cy, t); if (ally.mark === e.m) drawAyMark(e.m.x - cx, e.m.y - 22 - cy, t); }
     else { const s = e.s; ctx.drawImage(s.cv, Math.round(s.x - s.ax - cx), Math.round(s.y - s.ay - cy)); }
   }
   // dragon eye (blinks)
@@ -4371,6 +4837,12 @@ function render() {
   if (state.gateOpen) glow(GATE.x - cx, 130 - cy, 70, `rgba(255,120,40,${0.3 + 0.1 * pulse})`);
   ctx.globalCompositeOperation = "source-over";
 
+  // Āybarāq's warning: a moon arrow at the edge of the view, pointing at the foe behind
+  if (ayWarnT > 0) {
+    const a = ayWarnAng, px = player.x - cx, py = player.y - 12 - cy, R = Math.min(VW, VH) * 0.42, x = VW / 2 + Math.cos(a) * R, y = VH / 2 + Math.sin(a) * R * 0.9;
+    ctx.save(); ctx.translate(Math.round(Math.max(8, Math.min(VW - 8, x))), Math.round(Math.max(8, Math.min(VH - 8, y)))); ctx.rotate(a);
+    ctx.fillStyle = `rgba(220,230,255,${Math.min(1, ayWarnT)})`; ctx.beginPath(); ctx.moveTo(6, 0); ctx.lineTo(-4, -4); ctx.lineTo(-2, 0); ctx.lineTo(-4, 4); ctx.closePath(); ctx.fill(); ctx.restore();
+  }
   // crows (silhouettes above the canopy)
   crows.forEach(c => {
     const up = Math.floor(c.t * 8) & 1, x = Math.round(c.x), y = Math.round(c.y), d = Math.sign(c.vx);
@@ -4544,7 +5016,8 @@ function frame(now) {
   let dt = rdt;
   if (hitStop > 0) { hitStop -= rdt; dt = 0; }
   shakeT = Math.max(0, shakeT - rdt);
-  update(dt); render(); drawMini(now / 1000); drawTalkPortrait(now / 1000); if (!$("wmap").hidden) drawWorldMap(now / 1000);
+  update(dt); render(); drawMini(now / 1000); drawTalkPortrait(now / 1000);
+  if (ally.joined) { const g = $("ay-cv").getContext("2d"); g.clearRect(0, 0, 24, 24); drawAybaraq(g, 12, 32, now / 1000, 1, { dir: "down", perch: true }); } if (!$("wmap").hidden) drawWorldMap(now / 1000);
   requestAnimationFrame(frame);
 }
 render();
