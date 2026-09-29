@@ -56,7 +56,9 @@ button{font:inherit;color:inherit}
 .lvl-d span{position:absolute;inset:0;display:grid;place-items:center;transform:rotate(-45deg);font-family:var(--title);font-weight:700;font-size:11px;color:var(--ember-hi)}
 .vcol{display:grid;gap:6px;padding-top:1px;text-shadow:var(--tx)}
 .vname{font-family:var(--title);font-weight:700;font-size:13px;letter-spacing:.16em;text-transform:uppercase;color:var(--bone);white-space:nowrap}
-.vname small{font-family:var(--ui);font-weight:500;font-size:12px;letter-spacing:.02em;text-transform:none;color:var(--bone-2);margin-left:10px}
+.vname small{font-family:var(--ui);font-weight:500;font-size:12px;letter-spacing:.02em;text-transform:none;color:var(--bone-2);margin-left:10px;max-width:230px;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.vname{display:flex;align-items:baseline;max-width:310px}
+#who-name{max-width:190px;min-width:0;flex-shrink:0;overflow:hidden;text-overflow:ellipsis}
 .vrow{display:flex;align-items:center;gap:9px}
 .boon{display:flex;align-items:center;gap:8px;margin-top:6px;font-family:var(--title);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ember)}
 .boon i{width:9px;height:9px;transform:rotate(45deg);background:var(--ember);box-shadow:0 0 10px rgba(255,150,60,.9);animation:emberPulse 1.2s ease-in-out infinite}
@@ -394,7 +396,7 @@ button{font:inherit;color:inherit}
   <div class="vitals">
     <div class="medal"><div class="ring"><canvas id="portrait" width="20" height="20"></canvas></div><div class="lvl-d"><span id="lvl">1</span></div></div>
     <div class="vcol">
-      <div class="vname">Azizcan Yalçın<small>AI Engineer · Dring AI</small></div>
+      <div class="vname"><span id="who-name">Unknown</span><small id="who-sub"></small></div>
       <div class="vrow"><div class="vbar hp"><i id="bar-hp"></i></div><span id="bar-hp-t">Health 100 / 100</span></div>
       <div class="vrow"><div class="pips" id="pips"><b></b><b></b><b></b><b></b><b></b><b></b><b></b><b></b></div><span id="bar-s-t">Voice shards 0 / 8</span></div>
       <div class="tp"><i id="xp-fill"></i></div>
@@ -1994,6 +1996,9 @@ const flies = Array.from({ length: 70 }, () => {
   for (;;) { const tx = 2 + Math.floor(rng() * (MW - 4)), ty = 2 + Math.floor(rng() * (MH - 4)); const t = get(tx, ty); if (t === T.GRASS || t === T.FOREST || t === T.CAVE) return { x: tx * TS + rng() * 16, y: ty * TS + rng() * 16, p: rng() * 10, blue: t === T.CAVE }; }
 });
 
+// no leaves hang over where the traveller can stand around the tavern gate, so they never seem to walk behind them
+for (let y = 676; y < MPH; y++) for (let x = 330; x < 570; x++) if (!blockedPx(x, y))
+  for (let j = 0; j < 26 && y - j >= 0; j++) for (let i = -9; i <= 9; i++) O.d[((y - j) * MPW + x + i) * 4 + 3] = 0;
 const groundCv = G.canvas(), overCv = O.canvas();
 
 // ---------- player sprite ----------
@@ -2168,6 +2173,16 @@ if (!Array.isArray(state.quests)) state.quests = (state.lit > 0 || state.read.in
 // saves from before Gehan arrived keep the Field if they had already started it
 if (!state.gehanMig) { if ((state.read.includes("field") || state.swords.length) && !state.quests.includes("field")) state.quests.push("field"); state.gehanMig = true; }
 if (state.scene === "tavern") { player.x = TAV_SPAWN[0]; player.y = TAV_SPAWN[1]; }
+// what the traveller has told Od-Man of themselves, shown top left; a malformed record is dropped, and a name he noted in his memory carries over
+const WHO_CAP = { name: 24, craft: 40, guild: 40 };
+function cleanWho(v, cap) { return typeof v === "string" ? v.replace(/[^\p{L}\p{N} .,'&-]/gu, "").replace(/\s+/g, " ").trim().slice(0, cap).trim() : ""; }
+{
+  const w = state.who && typeof state.who === "object" && !Array.isArray(state.who) ? state.who : {}, who = {};
+  for (const k in WHO_CAP) { const c = cleanWho(w[k], WHO_CAP[k]); if (c) who[k] = c; }
+  const note = !who.name && state.odmem && Array.isArray(state.odmem.notes) && state.odmem.notes.find(n => typeof n === "string" && /^name:/i.test(n));
+  if (note) { const c = cleanWho(note.replace(/^name:\s*/i, ""), WHO_CAP.name); if (c) who.name = c; }
+  state.who = who;
+}
 
 // ---------- sound (all synthesized with Web Audio) ----------
 const Snd = (() => {
@@ -3338,6 +3353,18 @@ const OD_TOOLS = {
     }
     return "dismissed";
   },
+  name_traveller: (p = {}) => {
+    const got = [];
+    for (const k in WHO_CAP) {
+      const c = cleanWho(p[k], WHO_CAP[k]); if (!c) continue;
+      // a correction replaces the old note, so his memory never holds two names
+      const tag = `The traveller told you their ${k}:`, m = odMem(); m.auto = m.auto.filter(x => !x.startsWith(tag));
+      state.who[k] = c; got.push(k); odNote("auto", `${tag} ${c}.`);
+    }
+    if (!got.length) return "error: nothing to save";
+    save(); renderWho();
+    return "saved: " + got.join(", ");
+  },
   remember: ({ note } = {}) => odNote("notes", note) ? "remembered" : "error: empty note",
 };
 let voice = null, voiceMicDenied = false, odCoolUntil = 0, sdkP = null;
@@ -3348,6 +3375,11 @@ function odTools(v) {
   return t;
 }
 const markOk = () => !!state.mark && Object.prototype.hasOwnProperty.call(OD_PLACES, state.mark);
+function renderWho() {
+  const w = state.who;
+  $("who-name").textContent = w.name || "Unknown";
+  $("who-sub").textContent = [w.craft, w.guild].filter(Boolean).join(" · ");
+}
 function odMem() {
   const m = state.odmem = state.odmem && typeof state.odmem === "object" && !Array.isArray(state.odmem) ? state.odmem : {};
   if (!Array.isArray(m.auto)) m.auto = [];
@@ -3380,14 +3412,19 @@ function loadVoiceSdk() {
   return sdkP;
 }
 const questState = () => state.lit >= 6 ? "done" : accepted("keep") || state.lit > 0 ? "taken" : "new";
+// every opening ends in one question the traveller can answer out loud
 function odFirstLine() {
-  const m = odMem(), name = (m.notes.find(n => /^name:/i.test(n)) || "").replace(/^name:\s*/i, "").trim();
-  if (name) return `${name}. You came back to the fire.`;
-  if (m.visits && questState() === "new") return "You again. The Keep's trial still waits, if you have the fire for it.";
-  const tree = TALK_TREES.odman(); return tree.nodes[tree.start].text;
+  const name = state.who.name, q = questState(), by = s => name ? `${name}. ${s}` : s;
+  if (player.hp < player.maxHp * 0.4) return "You are bleeding embers. Sit by the fire first. Who did this to you?";
+  if (q === "done") return by("All six burn; I felt it from here. Where does your road go now: the Mere, the Grove, or the Gate?");
+  if (q === "taken") return by(state.lit > 0 ? `${["One", "Two", "Three", "Four", "Five"][state.lit - 1]} of six burn in the Keep. Which one holds you back?` : "The Keep still sleeps cold. Have you found it, or shall I mark the way?");
+  if (name) return `${name}, you came back. The Keep's trial still waits. Will you take it this time?`;
+  if (odMem().visits) return "You again. The Keep's trial still waits. Will you take it this time?";
+  return "Ah, a new flame out of the dark. I am Od-Man, keeper of this hearth. What name do you carry, traveller?";
 }
+const odTraveller = () => { const w = state.who; return `Name: ${w.name || "unknown"}. Craft: ${w.craft || "unknown"}. Guild: ${w.guild || "unknown"}.`; };
 function odVoiceVars() {
-  return { quest_state: questState(), statues_lit: state.lit, hp_low: player.hp < player.maxHp * 0.4 ? "yes" : "no", memory: odMemoryText() };
+  return { quest_state: questState(), statues_lit: state.lit, hp_low: player.hp < player.maxHp * 0.4 ? "yes" : "no", memory: odMemoryText(), traveller: odTraveller() };
 }
 // v3 audio tags such as [amused] steer the voice; the subtitle shows only the words
 const odSpoken = t => String(t || "").replace(/\[[^\]]*\]/g, "").replace(/\s+/g, " ").trim();
@@ -3517,9 +3554,9 @@ $("mn-full").addEventListener("click", toggleFull);
 let resetArm = false;
 $("mn-reset").addEventListener("click", e => {
   if (!resetArm) { resetArm = true; e.target.textContent = "Click again to confirm"; setTimeout(() => { resetArm = false; e.target.textContent = "Reset Progress"; }, 3000); return; }
-  Object.assign(state, { shards: [], lit: 0, read: [], gateOpen: false, swords: [], explored: "", zones: [], pos: null, bossDown: false, scene: "tavern", quests: [], met: [], odmem: null, mark: null }); boon = null; renderBoon(); odCoolUntil = 0; bossReset(); player.x = TAV_SPAWN[0]; player.y = TAV_SPAWN[1]; boat.riding = false; boat.x = BOAT_HOME[0]; boat.y = BOAT_HOME[1]; boat.vx = boat.vy = 0; state.boatPos = null;
+  Object.assign(state, { shards: [], lit: 0, read: [], gateOpen: false, swords: [], explored: "", zones: [], pos: null, bossDown: false, scene: "tavern", quests: [], met: [], odmem: null, mark: null, who: {} }); boon = null; renderBoon(); odCoolUntil = 0; bossReset(); player.x = TAV_SPAWN[0]; player.y = TAV_SPAWN[1]; boat.riding = false; boat.x = BOAT_HOME[0]; boat.y = BOAT_HOME[1]; boat.vx = boat.vy = 0; state.boatPos = null;
   explored.fill(0); lastTX = -1; miniDirty = true; shards.forEach(s => s.got = false); save();
-  lastXP = null; lastLevel = 1; renderLog();
+  lastXP = null; lastLevel = 1; renderLog(); renderWho();
   e.target.textContent = "Reset Progress"; resetArm = false; closeMenu();
   chat("Your progress has been reset.", "#ffff00");
 });
@@ -3669,7 +3706,7 @@ if (coarse) {
   $("abtn").addEventListener("pointerdown", e => { e.preventDefault(); if (!started) startGame(); else if (dlg) advance(); else interact(nearest); });
 }
 
-renderLog();
+renderLog(); renderWho();
 
 // ---------- zones ----------
 const ZONES = [
