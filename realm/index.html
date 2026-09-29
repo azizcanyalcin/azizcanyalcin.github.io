@@ -3305,7 +3305,7 @@ const OD_KICKOFF = "(The traveller steps up to your hearth.)";
 // ElevenLabs refuses new sessions once the plan's credits are spent
 const VOICE_QUOTA_LINE = "My voice is spent — the ElevenLabs credits are used up.";
 const isQuotaError = e => /quota|credits/i.test(String(e && e.message || e));
-const VOICE_T = undefined || { farewell: 155, dismissWait: 10, cool: 60 };
+const VOICE_T = undefined || { farewell: 275, dismissWait: 10, cool: 60 };
 // tests stand in for the Worker's address (undefined, or null for no voice); the public build reads only VOICE_WORKER
 const voiceCfg = () => undefined !== undefined ? undefined : VOICE_WORKER[location.hostname];
 // another page may embed the realm; the voice stays off there
@@ -3483,10 +3483,12 @@ async function voiceTicket(v) {
   const w = voiceCfg();
   const turnstile = await Promise.race([voiceTurnstile(w.sitekey), new Promise((_, no) => setTimeout(() => no(voiceErr("bot")), (VOICE_T.human || 60) * 1000))]);
   if (voice !== v) throw voiceErr("stale");
+  // the site owner's browser keeps a key (set by hand in localStorage) that lifts the Worker's talk limits
+  let owner = ""; try { owner = localStorage.getItem("realm-owner-key") || ""; } catch (e) {}
   const ac = new AbortController(), t = setTimeout(() => ac.abort(), (VOICE_T.connect || 10) * 1000);
   let r, j;
   try {
-    r = await fetch(w.url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ turnstile, agent: w.agent }), signal: ac.signal });
+    r = await fetch(w.url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(owner ? { turnstile, agent: w.agent, owner } : { turnstile, agent: w.agent }), signal: ac.signal });
     j = await r.json().catch(() => ({}));
   } catch (e) { throw voiceErr("upstream"); } finally { clearTimeout(t); }
   if (!r.ok || !j || typeof j.signedUrl !== "string") throw voiceErr(j && typeof j.error === "string" ? j.error : "upstream");
