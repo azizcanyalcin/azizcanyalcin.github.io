@@ -2623,7 +2623,9 @@ addEventListener("pointerdown", () => { if (started) Snd.start(); });
 const $ = id => document.getElementById(id);
 const view = $("view"), ctx = view.getContext("2d");
 const light = document.createElement("canvas"), lctx = light.getContext("2d");
-const coarse = matchMedia("(pointer: coarse)").matches;
+// touch or mouse can change while the page is open (a tablet's keyboard, DevTools' device mode), so this follows it
+const coarseMq = matchMedia("(pointer: coarse)");
+let coarse = coarseMq.matches;
 let SCALE = 3;
 function fitView() {
   const w = innerWidth, h = innerHeight;
@@ -3767,9 +3769,15 @@ $("enter").addEventListener("click", startGame);
 $("game").addEventListener("pointerdown", e => { if (started && !e.target.closest("input,button,a,.menu,.qframe")) focusGame(); });
 $("title").addEventListener("click", e => { if (e.target === $("title") && !$("enter").disabled) startGame(); });
 view.addEventListener("click", () => { if (!started) return startGame(); if (!dlg) attack(); });
-if (coarse) {
-  $("pad").hidden = false;
-  $("title-keys").textContent = "Use the pad to walk, ⚔ to attack and E to interact";
+const KEYS_HINT = $("title-keys").textContent;
+function applyCoarse(on) {
+  coarse = on; $("pad").hidden = !on;
+  $("title-keys").textContent = on ? "Use the pad to walk, ⚔ to attack and E to interact" : KEYS_HINT;
+  if (!on) for (const k of ["up", "down", "left", "right"]) keys[k] = false;
+}
+coarseMq.addEventListener("change", e => applyCoarse(e.matches));
+applyCoarse(coarse);
+{
   $("pad").querySelectorAll("[data-k]").forEach(b => {
     const k = b.dataset.k, on = e => { e.preventDefault(); keys[k] = true; b.classList.add("on"); }, off = () => { keys[k] = false; b.classList.remove("on"); };
     b.addEventListener("pointerdown", on); b.addEventListener("pointerup", off); b.addEventListener("pointercancel", off); b.addEventListener("pointerleave", off);
