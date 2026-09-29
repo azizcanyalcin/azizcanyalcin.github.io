@@ -2248,6 +2248,8 @@ const Snd = (() => {
   }
   function env(g, t, a, peak, d) { g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(peak, t + a); g.gain.exponentialRampToValueAtTime(0.0001, t + a + d); }
   function tone({ f, type = "sine", t = now(), a = 0.005, d = 0.3, gain = 0.2, dest = bus.sfx, pan = 0, wet = 0.2, glide, lp, detune = 0 }) {
+    if (!(f > 0 && f < ac.sampleRate / 2)) return;   // a bell's upper partials can pass the Nyquist limit; they would be inaudible, and the browser warns
+    if (glide) glide = Math.min(glide, ac.sampleRate / 2 - 1);
     const o = ac.createOscillator(); o.type = type; o.frequency.setValueAtTime(f, t); o.detune.value = detune;
     if (glide) o.frequency.exponentialRampToValueAtTime(glide, t + a + d);
     const g = voice(dest, pan, wet);
@@ -3447,6 +3449,8 @@ function odVoiceVars() {
 }
 // v3 audio tags such as [amused] steer the voice; the subtitle shows only the words
 const odSpoken = t => String(t || "").replace(/\[[^\]]*\]/g, "").replace(/\s+/g, " ").trim();
+// subtitles build up as the model writes, from its first token; a tag still being written is hidden
+let odStream = "";
 function setEmber(s) { const el = $("talk-ember"); el.dataset.s = s; el.textContent = s === "connecting" ? "Od-Man stirs, listening…" : s === "listening" ? "He listens" : "He speaks"; }
 function talkVoiceUI(on) {
   $("talk").classList.toggle("voice", on);
@@ -3469,6 +3473,7 @@ function loadTurnstile() {
 // one invisible widget, run once per talk; it only shows itself when Cloudflare wants the traveller to prove they are human
 async function voiceTurnstile(sitekey) {
   const ts = await loadTurnstile();
+  if (tsWait) { const w = tsWait; tsWait = null; w.no(voiceErr("bot")); }
   const box = $("ts-box"); box.hidden = false;   // shown only while the check runs; a passed check leaves no tick on screen
   return new Promise((ok, no) => {
     tsWait = { ok, no };
@@ -3482,8 +3487,11 @@ async function voiceTurnstile(sitekey) {
 const voiceErr = code => Object.assign(new Error(code), { code });
 // a human may need a while for a Turnstile challenge (VOICE_T.human); the Worker itself gets VOICE_T.connect, then the request is dropped
 async function voiceTicket(v) {
-  const w = voiceCfg();
-  const turnstile = await Promise.race([voiceTurnstile(w.sitekey), new Promise((_, no) => setTimeout(() => no(voiceErr("bot")), (VOICE_T.human || 60) * 1000))]);
+  const w = voiceCfg(), human = () => new Promise((_, no) => setTimeout(() => no(voiceErr("bot")), (VOICE_T.human || 60) * 1000));
+  if (tsPriming) await Promise.race([tsPriming, human()]).catch(() => {});
+  let turnstile;
+  if (tsReady && performance.now() - tsReady.at < (VOICE_T.tokenTtl || 270) * 1000) { turnstile = tsReady.tok; tsReady = null; }
+  else { tsReady = null; turnstile = await Promise.race([voiceTurnstile(w.sitekey), human()]); }
   if (voice !== v) throw voiceErr("stale");
   // the site owner's browser keeps a key (set by hand in localStorage) that lifts the Worker's talk limits
   let owner = ""; try { owner = localStorage.getItem("realm-owner-key") || ""; } catch (e) {}
@@ -3496,6 +3504,16 @@ async function voiceTicket(v) {
   if (!r.ok || !j || typeof j.signedUrl !== "string") throw voiceErr(j && typeof j.error === "string" ? j.error : "upstream");
   return j.signedUrl;
 }
+// The voice warms up as soon as the game starts: the SDK and Turnstile load, and one Turnstile token waits
+// (they live five minutes). Nothing reaches the Worker, and so nothing is counted, until the traveller speaks to Od-Man.
+let tsReady = null, tsPriming = null;
+function primeToken() {
+  if (!voiceOn() || voiceMicDenied || voice || tsPriming) return tsPriming;
+  const at = performance.now();
+  tsPriming = voiceTurnstile(voiceCfg().sitekey).then(tok => { tsReady = { tok, at }; }, () => {}).finally(() => { tsPriming = null; });
+  return tsPriming;
+}
+function voiceWarm() { if (!voiceOn() || voiceMicDenied) return; loadVoiceSdk().catch(() => {}); primeToken(); }
 // a talk that ends mid-check leaves no widget on screen and no one waiting on it
 function turnstileAbort() {
   const w = tsWait; tsWait = null; if (w) w.no(voiceErr("bot"));
@@ -3527,7 +3545,12 @@ async function voiceStart() {
       dynamicVariables: odVoiceVars(),
       clientTools: odTools(v),
       onConnect: () => { if (voice !== v) return; v.status = "connected"; voiceConnected(v); },
-      onMessage: ({ source, message }) => { if (voice !== v) return; if (source === "ai") $("talk-line").textContent = odSpoken(message); else if (message !== OD_KICKOFF) { $("talk-you").hidden = false; $("talk-you").textContent = "You: " + message; } },
+      onAgentChatResponsePart: p => {
+        if (voice !== v || !p) return;
+        if (p.type === "start") { odStream = ""; $("talk-line").textContent = ""; }
+        else if (p.type === "delta" && typeof p.text === "string") { odStream += p.text; const t = odSpoken(odStream.replace(/\[[^\]]*$/, "")); if (t) $("talk-line").textContent = t; }
+      },
+      onMessage: ({ source, message }) => { if (voice !== v) return; if (source === "ai") { odStream = ""; $("talk-line").textContent = odSpoken(message); } else if (message !== OD_KICKOFF) { $("talk-you").hidden = false; $("talk-you").textContent = "You: " + message; } },
       onModeChange: ({ mode }) => { if (voice !== v) return; v.mode = mode; setEmber(mode); if (v.leaving) { if (mode === "speaking") v.finalLine = true; else if (v.finalLine) voiceEnd(); } },
       onDisconnect: d => { if (voice !== v) return; if (d && d.reason === "error" && !v.leaving) voiceFallback("The fire gutters…", true); else voiceEnd(); },
       onError: () => {},
@@ -3548,7 +3571,7 @@ function voiceConnected(v) {
 }
 function voiceStop() {
   const v = voice; voice = null; if (!v) return;
-  turnstileAbort();
+  turnstileAbort(); setTimeout(primeToken, 1000);   // the next talk finds a token waiting
   odMem().lastMood = odMood; save(); setOdMood("calm", true);
   v.timers.forEach(clearTimeout);
   if (v.conv) try { v.conv.endSession(); } catch (e) {}
@@ -3718,7 +3741,7 @@ const KEYMAP = { ArrowUp: "up", KeyW: "up", ArrowDown: "down", KeyS: "down", Arr
 let started = false;
 const focusGame = () => { try { $("game").focus({ preventScroll: true }); } catch (e) {} };
 function startGame() {
-  if (started) return; started = true; $("title").hidden = true; focusGame(); setTimeout(focusGame, 0); Snd.start(); Snd.zone(zoneName);
+  if (started) return; started = true; $("title").hidden = true; focusGame(); setTimeout(focusGame, 0); Snd.start(); Snd.zone(zoneName); voiceWarm();
   chat("Welcome to the Realm of Azizcan.", "#ffff00");
   chat("Your quests are tracked on the right. Press M for the world map.", "#ffff00");
   const z0 = inTav(player.x, player.y) ? { name: "The Ember Tavern" } : ZONES.find(z => z.test(player.x >> 4, player.y >> 4));
