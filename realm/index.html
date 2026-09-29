@@ -1641,17 +1641,47 @@ function drawTavNpc(n, cx, cy, t) {
     ctx.fillStyle = "#12090a"; ctx.fillRect(tx - 5, ty, 10, 3); ctx.fillStyle = "#7c3b17"; ctx.fillRect(tx - 4, ty + 1, 8, 1); ctx.fillStyle = "#c97c3e"; ctx.fillRect(tx - 4, ty, 8, 1);
     for (const mx of [-3, 1]) { ctx.fillStyle = "#9a98a8"; ctx.fillRect(tx + mx, ty - 3, 3, 3); ctx.fillStyle = "#f4ecd8"; ctx.fillRect(tx + mx, ty - 4, 3, 1); }
   } else if (n.kind === "spring") {
-    const ox = x - 16, oy = y - 4 - 11 - 4;
+    // Gēhān's feeling runs through his spring: it blooms when he is glad, stills when he is sad,
+    // and when he is angry the water dries to cracked mud and thorny branches twist up from the stones
+    const ox = x - 16, oy = y - 4 - 11 - 4, e = geMoodT * geMoodT * (3 - 2 * geMoodT);
+    const bloom = geMood === "warm" || geMood === "amused" ? e : 0, still = geMood === "sad" ? e : 0, dry = geMood === "angry" ? e : 0;
+    const PAL_W = still > 0.5 ? ["#a9c2c8", "#6b8f9a", "#46707c", "#2e505b"] : bloom > 0.5 ? ["#eafffa", "#86f2e2", "#2fc2b6", "#188c8e"] : ["#b8fff0", "#4fd8c8", "#1f9e9a", "#156e74"];
     ctx.drawImage(SPRING_CV, ox, oy);
+    const reach = 1 - still * 0.22, speed = 1 - still * 0.75;
     for (let yy = 7; yy < 16; yy++) for (let xx = 5; xx < 28; xx++) {
       const ni = ((xx - 16) / 10.5) ** 2 + ((yy - 10.5) / 4.6) ** 2; if (ni > 1) continue;
-      const w = Math.sin(xx * 0.9 - t * 3 + yy * 0.6) + Math.sin(Math.hypot(xx - 16, (yy - 7) * 2) * 1.3 - t * 5);
-      ctx.fillStyle = w > 1.3 ? "#b8fff0" : w > 0.4 ? "#4fd8c8" : w > -0.8 ? "#1f9e9a" : "#156e74";
+      if (dry && ni > 1 - dry * 1.06) {   // the mud creeps in from the rim
+        const crack = Math.abs(vnoise(xx / 2.6 + 11, yy / 1.4) - 0.5) < 0.06 || Math.abs(vnoise(xx / 3.4, yy / 2.2 + 5) - 0.5) < 0.05;
+        ctx.fillStyle = crack ? "#2a1a0e" : hash2(xx + 7, yy) > 0.5 ? "#8a6340" : "#6e4d30"; ctx.fillRect(ox + xx, oy + yy, 1, 1); continue;
+      }
+      if (ni > reach) { ctx.fillStyle = "#26363c"; ctx.fillRect(ox + xx, oy + yy, 1, 1); continue; }   // a wet ring where the water sank
+      const w = Math.sin(xx * 0.9 - t * 3 * speed + yy * 0.6) + Math.sin(Math.hypot(xx - 16, (yy - 7) * 2) * 1.3 - t * 5 * speed);
+      ctx.fillStyle = w > 1.3 ? PAL_W[0] : w > 0.4 ? PAL_W[1] : w > -0.8 ? PAL_W[2] : PAL_W[3];
       ctx.fillRect(ox + xx, oy + yy, 1, 1);
     }
-    // the spill from the rock and a few rising droplets
-    for (let k = 0; k < 4; k++) { ctx.fillStyle = (Math.floor(t * 10) + k) % 2 ? "#b8fff0" : "#4fd8c8"; ctx.fillRect(ox + 15 + (k & 1), oy + 5 + k, 1, 1); }
-    for (let k = 0; k < 3; k++) { const ph = (t * 0.7 + k / 3) % 1; ctx.globalAlpha = 1 - ph; ctx.fillStyle = "#b8fff0"; ctx.fillRect(ox + 10 + k * 6 + Math.round(Math.sin(t * 2 + k) * 1.5), oy + 9 - Math.round(ph * 12), 1, 1); ctx.globalAlpha = 1; }
+    // the spill from the rock and a few rising droplets; more of them, and higher, when he is glad
+    if (dry < 0.6 && still < 0.6) for (let k = 0; k < 4; k++) { ctx.fillStyle = (Math.floor(t * 10) + k) % 2 ? PAL_W[0] : PAL_W[1]; ctx.fillRect(ox + 15 + (k & 1), oy + 5 + k, 1, 1); }
+    const drops = dry > 0.3 || still > 0.5 ? 0 : bloom > 0.3 ? 6 : 3, rise = 12 + bloom * 8;
+    for (let k = 0; k < drops; k++) { const ph = (t * 0.7 + k / drops) % 1; ctx.globalAlpha = 1 - ph; ctx.fillStyle = PAL_W[0]; ctx.fillRect(ox + 8 + k * (18 / drops) + Math.round(Math.sin(t * 2 + k) * 1.5), oy + 9 - Math.round(ph * rise), 1, 1); ctx.globalAlpha = 1; }
+    // flowers open one by one around the stones
+    [[3, 10], [6, 14], [10, 17], [16, 18], [22, 17], [26, 14], [29, 10], [25, 5], [7, 5]].forEach(([fx, fy], i) => {
+      if (i / 9 >= bloom) return;
+      ctx.fillStyle = "#3f8a3a"; ctx.fillRect(ox + fx, oy + fy + 1, 1, 1); ctx.fillRect(ox + fx - 1, oy + fy + 1, 1, 1);
+      ctx.fillStyle = geMood === "amused" && i % 2 ? "#ffb8d8" : "#fff4f0"; ctx.fillRect(ox + fx, oy + fy, 1, 1);
+      if (i % 3 === 0) { ctx.fillStyle = "#ffd060"; ctx.fillRect(ox + fx + 1, oy + fy, 1, 1); }
+    });
+    // dry, thorny branches twist up out of the ring of stones: pale dead wood, outlined dark so they read against the floor
+    [[4, 11, 12, -1], [9, 5, 10, 1], [16, 3, 8, 0], [23, 5, 11, -1], [28, 11, 13, 1]].forEach(([bx, by, h, lean], i) => {
+      const len = Math.floor(h * dry); if (len < 1) return;
+      const at = j => [ox + bx + lean * Math.floor((j * j) / (h * 3.2)) + (j > 4 && i % 2 ? Math.round(Math.sin(j * 0.9 + i) * 0.7) : 0), oy + by - j];
+      for (let j = 0; j < len; j++) {
+        const [px, py] = at(j), w = j < 3 ? 2 : 1;
+        ctx.fillStyle = "#1a110b"; ctx.fillRect(px - 1, py, 1, 1); ctx.fillRect(px + w, py, 1, 1);
+        ctx.fillStyle = j % 3 === 0 ? "#b39a7c" : "#8f7a60"; ctx.fillRect(px, py, w, 1);
+        if (j > 2 && j % 3 === 2) { const sx = (j + i) % 2 ? w + 1 : -2; ctx.fillStyle = "#c8b294"; ctx.fillRect(px + sx, py - 1, 1, 1); }   // thorns
+      }
+      if (len > 5) { const [px, py] = at(len - 1); ctx.fillStyle = "#8f7a60"; ctx.fillRect(px - 1, py - 1, 1, 1); ctx.fillRect(px + 1, py - 1, 1, 1); ctx.fillStyle = "#1a110b"; ctx.fillRect(px - 1, py - 2, 1, 1); ctx.fillRect(px + 1, py - 2, 1, 1); }   // a forked tip
+    });
   } else if (n.kind === "dog") ctx.drawImage(DOG_FR[Math.floor(t / 1.4) & 1], x - 14, y - 13);
   else if (n.kind === "cat") ctx.drawImage(CAT_FR[Math.floor(t * 1.5) % 4 === 3 ? 1 : Math.floor(t * 1.5) % 4 === 1 ? 2 : 0], x - 5, y + n.oy - 11);
 }
@@ -1842,6 +1872,9 @@ const OD_LOOK = {
 };
 const OD_MOODS = ["calm", "warm", "amused", "angry", "sad"];
 let odMood = "calm", odVol = 0, odFlareT = 0;
+// Gēhān's feeling shows in the spring (see the spring's drawing); geMoodT eases each change in
+const GE_MOODS = ["calm", "warm", "amused", "angry", "sad"];
+let geMood = "calm", geMoodT = 1;
 function drawOdman(g, bx, by, t, s) {
   const R0 = -1, R1 = 46, D = 13, grid = [];
   for (let r = R0; r <= R1; r++) { const row = []; for (let dx = -D; dx <= D; dx++) row.push(odPart(r, dx)); grid.push(row); }
@@ -2184,6 +2217,14 @@ function cleanWho(v, cap) { return typeof v === "string" ? v.replace(/[^\p{L}\p{
   const note = !who.name && state.odmem && Array.isArray(state.odmem.notes) && state.odmem.notes.find(n => typeof n === "string" && /^name:/i.test(n));
   if (note) { const c = cleanWho(note.replace(/^name:\s*/i, ""), WHO_CAP.name); if (c) who.name = c; }
   state.who = who;
+}
+// what both keepers share: the roads the traveller told of, and the words each keeper left for the other
+function cleanText(v, cap) { return typeof v === "string" ? v.replace(/[^\p{L}\p{N}\s.,'&!?;:()"-]/gu, "").replace(/\s+/g, " ").trim().slice(0, cap).trim() : ""; }
+state.roads = Array.isArray(state.roads) ? state.roads.map(r => cleanText(r, 80)).filter(Boolean).slice(-5) : [];
+{
+  const w = state.words && typeof state.words === "object" && !Array.isArray(state.words) ? state.words : {}, words = {};
+  for (const k of ["odman", "gehan"]) if (Array.isArray(w[k])) words[k] = w[k].map(x => cleanText(x, 140)).filter(Boolean).slice(-2);
+  state.words = words;
 }
 
 // ---------- sound (all synthesized with Web Audio) ----------
@@ -3256,7 +3297,7 @@ function talkTo(id) {
   $("talk").hidden = false; $("hint").hidden = true; $("hint").dataset.t = "";
   $("game").classList.add("reading"); Snd.duck(true); Snd.play("open");
   $("talk-name").textContent = `${NPC_REFS[id].name}, ${NPC_REFS[id].title}`;
-  if (id === "odman" && voiceOn() && !voiceMicDenied) { voiceStart(); return; }
+  if (VNPCS[id] && voiceOn() && !voiceMicDenied) { voiceStart(id); return; }
   renderTalk();
 }
 function renderTalk() {
@@ -3305,6 +3346,7 @@ const VOICE_SDK_SRI = "sha384-gzDheUfTg5C6QU8UW6SQRA5ZDZz9JR2iCLdLfVq0tGUCTwF5J5
 const TURNSTILE_SDK = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
 // the fixed line sent when a session opens; the prompt answers it with the opening, so nothing the page sends is read aloud
 const OD_KICKOFF = "(The traveller steps up to your hearth.)";
+const GE_KICKOFF = "(The traveller sits down by the spring.)";
 // tests pass their own object (undefined) and may change it mid-run
 // ElevenLabs refuses new sessions once the plan's credits are spent
 const VOICE_QUOTA_LINE = "My voice is spent — the ElevenLabs credits are used up.";
@@ -3337,6 +3379,70 @@ function setOdMood(m, quiet) {
   odMood = m; odFlareT = m === "angry" || m === "amused" ? 1 : 0;
   if (!quiet) Snd.play(m === "angry" ? "growl" : m === "sad" ? "cold" : m === "amused" ? "laugh" : "ignite");
 }
+const KEEPERS = { odman: { name: "Od-Man", key: "odmem" }, gehan: { name: "Gēhān", key: "gemem" } };
+const otherOf = npc => npc === "odman" ? "gehan" : "odman";
+function makeMarkMap(npc) {
+  return ({ place } = {}) => {
+    if (!Object.prototype.hasOwnProperty.call(OD_PLACES, place)) return "error: unknown place";
+    const l = LANDMARKS[OD_PLACES[place]];
+    state.mark = place; save();
+    chat(`${KEEPERS[npc].name} marks ${l.name} on your map (M).`, "#e8964a");
+    npcNote(KEEPERS[npc].key, "auto", `You marked ${l.name} on their map.`);
+    return "marked";
+  };
+}
+function makeNameTraveller(npc) {
+  return (p = {}) => {
+    const got = [], key = KEEPERS[npc].key;
+    for (const k in WHO_CAP) {
+      const c = cleanWho(p[k], WHO_CAP[k]); if (!c) continue;
+      // a correction replaces the old note, so his memory never holds two names
+      const tag = `The traveller told you their ${k}:`, m = npcMem(key); m.auto = m.auto.filter(x => !x.startsWith(tag));
+      state.who[k] = c; got.push(k); npcNote(key, "auto", `${tag} ${c}.`);
+    }
+    if (!got.length) return "error: nothing to save";
+    save(); renderWho();
+    return "saved: " + got.join(", ");
+  };
+}
+// the traveller's earlier roads: at most five, shared by both keepers
+function makeNoteRoad(npc) {
+  return ({ road } = {}) => {
+    const c = cleanText(road, 80); if (!c) return "error: empty road";
+    if (state.roads.some(r => r.toLowerCase() === c.toLowerCase())) return "already known";
+    state.roads = state.roads.concat(c).slice(-5); npcNote(KEEPERS[npc].key, "auto", `The traveller told you of a road: ${c}.`); save();
+    return "saved";
+  };
+}
+// a short word for the other keeper, who hears it at the start of his next talk
+function makeSendWord(npc) {
+  return ({ word } = {}) => {
+    const c = cleanText(word, 140); if (!c) return "error: empty word";
+    const to = otherOf(npc); state.words[to] = (state.words[to] || []).concat(c).slice(-2);
+    npcNote(KEEPERS[npc].key, "auto", `You sent word to ${KEEPERS[to].name}: ${c}`); save();
+    return "sent";
+  };
+}
+function geMem() { return npcMem("gemem"); }
+function setGeMood(m, quiet) {
+  if (m !== geMood) geMoodT = 0;
+  geMood = m;
+  if (!quiet) Snd.play(m === "angry" ? "cold" : m === "sad" ? "cold" : m === "amused" || m === "warm" ? "ignite" : "page");
+}
+const GE_TOOLS = {
+  set_mood: ({ mood } = {}) => { if (!GE_MOODS.includes(mood)) return "error: unknown mood"; setGeMood(mood); return "ok"; },
+  mark_map: makeMarkMap("gehan"),
+  give_quest: ({ quest } = {}) => {
+    if (quest !== "field") return "error: Gēhān can only give the Trial of the Old Roads (field)";
+    if (accepted("field")) return "already taken";
+    acceptQuest("field"); npcNote("gemem", "auto", "You gave the traveller the Trial of the Old Roads.");
+    return "given";
+  },
+  name_traveller: makeNameTraveller("gehan"),
+  note_road: makeNoteRoad("gehan"),
+  send_word: makeSendWord("gehan"),
+  remember: ({ note } = {}) => npcNote("gemem", "notes", note) ? "remembered" : "error: empty note",
+};
 const OD_TOOLS = {
   set_mood: ({ mood } = {}) => { if (!OD_MOODS.includes(mood)) return "error: unknown mood"; setOdMood(mood); return "ok"; },
   grant_boon: ({ kind } = {}) => {
@@ -3346,14 +3452,7 @@ const OD_TOOLS = {
     voice.boon = kind; giveBoon(kind); odNote("auto", `You granted them the boon ${BOONS[kind].name}.`);
     return "given";
   },
-  mark_map: ({ place } = {}) => {
-    if (!Object.prototype.hasOwnProperty.call(OD_PLACES, place)) return "error: unknown place";
-    const l = LANDMARKS[OD_PLACES[place]];
-    state.mark = place; save();
-    chat(`Od-Man marks ${l.name} on your map (M).`, "#e8964a");
-    odNote("auto", `You marked ${l.name} on their map.`);
-    return "marked";
-  },
+  mark_map: makeMarkMap("odman"),
   give_quest: ({ quest } = {}) => {
     if (quest !== "keep") return "error: Od-Man can only give the Trial of the Factory (keep)";
     if (accepted("keep")) return "already taken";
@@ -3372,25 +3471,16 @@ const OD_TOOLS = {
     }
     return "dismissed";
   },
-  name_traveller: (p = {}) => {
-    const got = [];
-    for (const k in WHO_CAP) {
-      const c = cleanWho(p[k], WHO_CAP[k]); if (!c) continue;
-      // a correction replaces the old note, so his memory never holds two names
-      const tag = `The traveller told you their ${k}:`, m = odMem(); m.auto = m.auto.filter(x => !x.startsWith(tag));
-      state.who[k] = c; got.push(k); odNote("auto", `${tag} ${c}.`);
-    }
-    if (!got.length) return "error: nothing to save";
-    save(); renderWho();
-    return "saved: " + got.join(", ");
-  },
+  name_traveller: makeNameTraveller("odman"),
+  note_road: makeNoteRoad("odman"),
+  send_word: makeSendWord("odman"),
   remember: ({ note } = {}) => odNote("notes", note) ? "remembered" : "error: empty note",
 };
 let voice = null, voiceMicDenied = false, odCoolUntil = 0, sdkP = null;
 // each session gets its own wrappers, so a call that arrives after that talk ended changes nothing
-function odTools(v) {
-  const t = {};
-  for (const k in OD_TOOLS) t[k] = p => voice === v ? OD_TOOLS[k](p || {}) : "refused: the talk is over";
+function npcTools(v) {
+  const t = {}, tools = VNPCS[v.npc].tools;
+  for (const k in tools) t[k] = p => voice === v ? tools[k](p || {}) : "refused: the talk is over";
   return t;
 }
 const markOk = () => !!state.mark && Object.prototype.hasOwnProperty.call(OD_PLACES, state.mark);
@@ -3399,27 +3489,31 @@ function renderWho() {
   $("who-name").textContent = w.name || "Unknown";
   $("who-sub").textContent = [w.craft, w.guild].filter(Boolean).join(" · ");
 }
-function odMem() {
-  const m = state.odmem = state.odmem && typeof state.odmem === "object" && !Array.isArray(state.odmem) ? state.odmem : {};
+// each keeper's memory of the traveller: state.odmem for Od-Man, state.gemem for Gēhān
+function npcMem(key) {
+  const m = state[key] = state[key] && typeof state[key] === "object" && !Array.isArray(state[key]) ? state[key] : {};
   if (!Array.isArray(m.auto)) m.auto = [];
   if (!Array.isArray(m.notes)) m.notes = [];
   if (!Number.isInteger(m.visits) || m.visits < 0) m.visits = 0;
   return m;
 }
-function odNote(list, text) {
-  const m = odMem(), t = String(text == null ? "" : text).trim().slice(0, 140);
+function odMem() { return npcMem("odmem"); }
+function npcNote(key, list, text) {
+  const m = npcMem(key), t = String(text == null ? "" : text).trim().slice(0, 140);
   if (!t) return false;
   m[list] = m[list].filter(x => x !== t).concat(t).slice(-12); save();
   return true;
 }
-function odMemoryText() {
-  const m = odMem(), lines = [`Times the traveller has spoken with you before: ${m.visits}.`];
+function odNote(list, text) { return npcNote("odmem", list, text); }
+function npcMemoryText(key) {
+  const m = npcMem(key), lines = [`Times the traveller has spoken with you before: ${m.visits}.`];
   if (!m.auto.length && !m.notes.length) lines.push("You have never met this traveller.");
   if (m.auto.length) lines.push("What has passed between you:", ...m.auto.map(x => "- " + x));
   if (m.lastMood) lines.push(`Your last talk with them ended with you ${m.lastMood}.`);
   if (m.notes.length) lines.push("Your own notes about them:", ...m.notes.map(x => "- " + x));
   return lines.join("\n");
 }
+function odMemoryText() { return npcMemoryText("odmem"); }
 function loadVoiceSdk() {
   if (window.ElevenLabsClient) return Promise.resolve(window.ElevenLabsClient);
   if (!sdkP) sdkP = new Promise((ok, no) => {
@@ -3439,19 +3533,51 @@ function odFirstLine() {
   if (player.hp < player.maxHp * 0.4) return "You are bleeding embers. Sit by the fire first. Who did this to you?";
   if (q === "done") return ("All six burn; I felt it from here. Where does your road go now: the Mere, the Grove, or the Gate?");
   if (q === "taken") return (state.lit > 0 ? `${["One", "Two", "Three", "Four", "Five"][state.lit - 1]} of six burn in the Keep. Which one holds you back?` : "The Keep still sleeps cold. Have you found it, or shall I mark the way?");
-  if (name) return "You came back to the fire. The Keep's trial still waits. Will you take it this time?";
-  if (odMem().visits) return "You again. The Keep's trial still waits. Will you take it this time?";
+  const w = state.who, met = odMem().visits > 0;
+  if (name && met) return "You came back to the fire. The Keep's trial still waits. Will you take it this time?";
+  if (met) return "You again. The Keep's trial still waits. Will you take it this time?";
+  // a first meeting with someone Gēhān has already named: he asks only what is still unknown
+  if (name) return `Ah, a new flame out of the dark. I am Od-Man, keeper of this hearth. The chatterbox by the spring has spoken of you. ${!w.craft ? "What is your craft, traveller?" : !w.guild ? "Whose banner do you work under?" : "Will you take the Keep's trial?"}`;
   return "Ah, a new flame out of the dark. I am Od-Man, keeper of this hearth. What name do you carry, traveller?";
 }
-const odTraveller = () => { const w = state.who; return `Name: ${w.name || "unknown"}. Craft: ${w.craft || "unknown"}. Guild: ${w.guild || "unknown"}.`; };
+const odTraveller = () => { const w = state.who; return `Name: ${w.name || "unknown"}. Craft: ${w.craft || "unknown"}. Guild: ${w.guild || "unknown"}. Roads: ${state.roads.length ? state.roads.join("; ") + "." : "none told yet."}`; };
+// what the other keeper knows of the traveller, so each can say "the burning one told me…"
+function otherKeeper(npc) {
+  // his memory is written to himself ("You gave…"); the other keeper hears it about him, and never his own words back
+  const third = x => x.startsWith("A word from ") || x.startsWith("You sent word to ") ? "" : x.replace(/^You /, "He ").replace(/^The traveller told you /, "The traveller told him ");
+  const o = KEEPERS[otherOf(npc)], m = npcMem(o.key), seen = m.auto.map(third).filter(Boolean).concat(m.notes).slice(-6);
+  if (!m.visits && !seen.length) return `${o.name} has not met this traveller.`;
+  return [`${o.name} has spoken with them ${m.visits} time(s). What he knows:`, ...(seen.length ? seen.map(x => "- " + x) : ["- nothing noted yet."])].join("\n");
+}
+const wordFor = npc => (state.words[npc] || []).length ? state.words[npc].join(" / ") : "none";
+const hpLow = () => player.hp < player.maxHp * 0.4 ? "yes" : "no";
 function odVoiceVars() {
-  return { quest_state: questState(), statues_lit: state.lit, hp_low: player.hp < player.maxHp * 0.4 ? "yes" : "no", memory: odMemoryText(), traveller: odTraveller() };
+  return { quest_state: questState(), statues_lit: state.lit, hp_low: hpLow(), memory: odMemoryText(), traveller: odTraveller(), other_keeper: otherKeeper("odman"), word_for_you: wordFor("odman") };
+}
+const fieldState = () => state.swords.length >= 8 ? "done" : accepted("field") || state.swords.length > 0 ? "taken" : "new";
+function bladesText() {
+  const lit = [...state.swords].sort((a, b) => a - b), name = i => `${SWORDS[i][0]} (${SWORDS[i][1]})`;
+  if (!lit.length) return "All eight blades sleep.";
+  if (lit.length >= 8) return "All eight blades burn.";
+  return `Burning: ${lit.map(name).join(", ")}. Asleep: ${SWORDS.map((_, i) => i).filter(i => !lit.includes(i)).map(name).join(", ")}.`;
+}
+// like Od-Man's, every opening ends in one question and carries no name
+function geFirstLine() {
+  const q = fieldState(), n = state.swords.length;
+  if (hpLow() === "yes") return "You are hurt. Sit, let the water cool it. Who did this to you?";
+  if (q === "done") return "Eight blades burn in the field; the spring felt every one. Which road will you walk next?";
+  if (q === "taken") return n > 0 ? `${["One", "Two", "Three", "Four", "Five", "Six", "Seven"][n - 1]} of eight blades burn. Which sleeping road shall I tell you about?` : "The field still waits in the south-east. Shall I tell you what sleeps there, or mark the way?";
+  if (geMem().visits) return "You came back to the water. The field's trial still waits. Will you take it this time?";
+  return "Come, sit by the water. The spring has been waiting for you. What road brought you here?";
+}
+function geVoiceVars() {
+  return { field_state: fieldState(), blades: bladesText(), hp_low: hpLow(), memory: npcMemoryText("gemem"), traveller: odTraveller(), other_keeper: otherKeeper("gehan"), word_for_you: wordFor("gehan") };
 }
 // v3 audio tags such as [amused] steer the voice; the subtitle shows only the words
 const odSpoken = t => String(t || "").replace(/\[[^\]]*\]/g, "").replace(/\s+/g, " ").trim();
 // subtitles build up as the model writes, from its first token; a tag still being written is hidden
 let odStream = "";
-function setEmber(s) { const el = $("talk-ember"); el.dataset.s = s; el.textContent = s === "connecting" ? "Od-Man stirs, listening…" : s === "listening" ? "He listens" : "He speaks"; }
+function setEmber(s) { const el = $("talk-ember"); el.dataset.s = s; el.textContent = s === "connecting" ? `${voice ? VNPCS[voice.npc].name : "Od-Man"} stirs, listening…` : s === "listening" ? "He listens" : "He speaks"; }
 function talkVoiceUI(on) {
   $("talk").classList.toggle("voice", on);
   $("talk-choices").replaceChildren(); $("talk-more").hidden = on;
@@ -3498,7 +3624,7 @@ async function voiceTicket(v) {
   const ac = new AbortController(), t = setTimeout(() => ac.abort(), (VOICE_T.connect || 10) * 1000);
   let r, j;
   try {
-    r = await fetch(w.url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(owner ? { turnstile, agent: w.agent, owner } : { turnstile, agent: w.agent }), signal: ac.signal });
+    r = await fetch(w.url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(owner ? { turnstile, agent: w.agent, npc: v.npc, owner } : { turnstile, agent: w.agent, npc: v.npc }), signal: ac.signal });
     j = await r.json().catch(() => ({}));
   } catch (e) { throw voiceErr("upstream"); } finally { clearTimeout(t); }
   if (!r.ok || !j || typeof j.signedUrl !== "string") throw voiceErr(j && typeof j.error === "string" ? j.error : "upstream");
@@ -3520,15 +3646,31 @@ function turnstileAbort() {
   $("ts-box").hidden = true;
   if (tsId !== null && window.turnstile) try { window.turnstile.reset(tsId); } catch (e) {}
 }
-async function voiceStart() {
-  const line = odFirstLine(), v = voice = { conv: null, status: "connecting", mode: "speaking", boon: null, leaving: 0, timers: [] };
+// the voiced keepers: what each one brings to the shared voice pipeline
+const VNPCS = {
+  odman: {
+    name: "Od-Man", tools: OD_TOOLS, mem: odMem, firstLine: () => odFirstLine(), vars: () => odVoiceVars(), kickoff: OD_KICKOFF,
+    setMood: (m, q) => setOdMood(m, q), mood: () => odMood, quest: "keep", mustNode: "more",
+    lines: { deaf: "Od-Man cannot hear you. Speak with him the old way.", gutter: "The fire gutters…", spent: "My voice is spent for tonight, traveller.",
+             farewell: "The fire grows low: say farewell now, in one or two sentences, in character.", ...TICKET_LINES },
+  },
+  gehan: {
+    name: "Gēhān", tools: GE_TOOLS, mem: geMem, firstLine: () => geFirstLine(), vars: () => geVoiceVars(), kickoff: GE_KICKOFF,
+    setMood: (m, q) => setGeMood(m, q), mood: () => geMood, quest: "field", mustNode: "c",
+    lines: { deaf: "Gēhān cannot hear you. Talk with him the old way.", gutter: "The water stills…", spent: "The spring is quiet for tonight, traveller.",
+             farewell: "The spring runs low: say farewell now, in one or two sentences, in character.",
+             visitor: "You have drunk from my spring enough for one day. Talk with me the old way.", day: "The spring is quiet for tonight, traveller.", quota: VOICE_QUOTA_LINE },
+  },
+};
+async function voiceStart(npc = "odman") {
+  const N = VNPCS[npc], line = N.firstLine(), v = voice = { npc, conv: null, status: "connecting", mode: "speaking", boon: null, leaving: 0, timers: [] };
   talkVoiceUI(true); setEmber("connecting"); $("talk-line").textContent = line;
-  const m = odMem();
+  const m = N.mem();
   // the notice shows on every voice talk until the traveller clicks it away
   const you = $("talk-you"), priv = Object.assign(document.createElement("a"), { href: "../privacy.html", target: "_blank", rel: "noopener", textContent: "Privacy" });
-  you.hidden = !!m.noticed; if (!m.noticed) you.replaceChildren("Your voice goes to ElevenLabs so Od-Man can hear you. Transcripts are kept 7 days. ", priv);
+  you.hidden = !!m.noticed; if (!m.noticed) you.replaceChildren(`Your voice goes to ElevenLabs so ${N.name} can hear you. Transcripts are kept 7 days. `, priv);
   try { const s = await navigator.mediaDevices.getUserMedia({ audio: true }); s.getTracks().forEach(t => t.stop()); }
-  catch (e) { voiceMicDenied = true; if (voice === v) voiceFallback("Od-Man cannot hear you. Speak with him the old way.", false); return; }
+  catch (e) { voiceMicDenied = true; if (voice === v) voiceFallback(N.lines.deaf, false); return; }
   if (voice !== v) return;
   let sdk;
   try { sdk = await loadVoiceSdk(); } catch (e) { if (voice === v) voiceFallback(null, false); return; }
@@ -3536,43 +3678,45 @@ async function voiceStart() {
   const limit = () => new Promise((_, no) => setTimeout(() => no(new Error("timeout")), (VOICE_T.connect || 10) * 1000));
   let signedUrl;
   try { signedUrl = await voiceTicket(v); }
-  catch (e) { if (voice === v) voiceFallback(TICKET_LINES[e && e.code] || "The fire gutters…", false); return; }
+  catch (e) { if (voice === v) voiceFallback(N.lines[e && e.code] || N.lines.gutter, false); return; }
   if (voice !== v) return;
   let conv, starting;
   try {
     starting = sdk.Conversation.startSession({
       signedUrl, connectionType: "websocket",
-      dynamicVariables: odVoiceVars(),
-      clientTools: odTools(v),
+      dynamicVariables: N.vars(),
+      clientTools: npcTools(v),
       onConnect: () => { if (voice !== v) return; v.status = "connected"; voiceConnected(v); },
       onAgentChatResponsePart: p => {
         if (voice !== v || !p) return;
         if (p.type === "start") { odStream = ""; $("talk-line").textContent = ""; }
         else if (p.type === "delta" && typeof p.text === "string") { odStream += p.text; const t = odSpoken(odStream.replace(/\[[^\]]*$/, "")); if (t) $("talk-line").textContent = t; }
       },
-      onMessage: ({ source, message }) => { if (voice !== v) return; if (source === "ai") { odStream = ""; $("talk-line").textContent = odSpoken(message); } else if (message !== OD_KICKOFF) { $("talk-you").hidden = false; $("talk-you").textContent = "You: " + message; } },
+      onMessage: ({ source, message }) => { if (voice !== v) return; if (source === "ai") { odStream = ""; $("talk-line").textContent = odSpoken(message); } else if (message !== N.kickoff) { $("talk-you").hidden = false; $("talk-you").textContent = "You: " + message; } },
       onModeChange: ({ mode }) => { if (voice !== v) return; v.mode = mode; setEmber(mode); if (v.leaving) { if (mode === "speaking") v.finalLine = true; else if (v.finalLine) voiceEnd(); } },
-      onDisconnect: d => { if (voice !== v) return; if (d && d.reason === "error" && !v.leaving) voiceFallback("The fire gutters…", true); else voiceEnd(); },
+      onDisconnect: d => { if (voice !== v) return; if (d && d.reason === "error" && !v.leaving) voiceFallback(N.lines.gutter, true); else voiceEnd(); },
       onError: () => {},
     });
     // a connection that never completes must not leave the band waiting forever
     conv = await Promise.race([starting, limit()]);
   } catch (e) {
     if (starting) starting.then(c => { if (voice !== v) try { c.endSession(); } catch (x) {} }, () => {});   // close a session that arrives too late
-    if (voice === v) voiceFallback(isQuotaError(e) ? VOICE_QUOTA_LINE : "My voice is spent for tonight, traveller.", false); return;
+    if (voice === v) voiceFallback(isQuotaError(e) ? VOICE_QUOTA_LINE : N.lines.spent, false); return;
   }
   if (voice !== v) { try { conv.endSession(); } catch (e) {} return; }
   v.conv = conv;
-  try { conv.sendUserMessage(OD_KICKOFF); } catch (e) {}
+  try { conv.sendUserMessage(N.kickoff); } catch (e) {}
 }
 function voiceConnected(v) {
-  odMem().visits++; save();
-  v.timers.push(setTimeout(() => { if (voice === v && v.conv) v.conv.sendContextualUpdate("The fire grows low: say farewell now, in one or two sentences, in character."); }, VOICE_T.farewell * 1000));
+  const N = VNPCS[v.npc]; N.mem().visits++;
+  for (const w of state.words[v.npc] || []) npcNote(KEEPERS[v.npc].key, "auto", `A word from ${KEEPERS[otherOf(v.npc)].name} reached you: ${w}`);
+  state.words[v.npc] = []; save();
+  v.timers.push(setTimeout(() => { if (voice === v && v.conv) v.conv.sendContextualUpdate(N.lines.farewell); }, VOICE_T.farewell * 1000));
 }
 function voiceStop() {
   const v = voice; voice = null; if (!v) return;
   turnstileAbort(); setTimeout(primeToken, 1000);   // the next talk finds a token waiting
-  odMem().lastMood = odMood; save(); setOdMood("calm", true);
+  const N = VNPCS[v.npc]; N.mem().lastMood = N.mood(); save(); N.setMood("calm", true);
   v.timers.forEach(clearTimeout);
   if (v.conv) try { v.conv.endSession(); } catch (e) {}
 }
@@ -3585,7 +3729,7 @@ function voiceFallback(msg, toMust) {
   voiceStop();
   if (!talk) return;
   talkVoiceUI(false);
-  const tree = TALK_TREES.odman(), target = toMust && tree.nodes.more && !accepted("keep") ? "more" : tree.start;
+  const N = VNPCS[talk.id], tree = TALK_TREES[talk.id](), target = toMust && tree.nodes[N.mustNode] && !accepted(N.quest) ? N.mustNode : tree.start;
   talk.tree = tree; talk.node = target;
   if (msg) { tree.nodes.__v = { text: msg, next: target, must: !!tree.nodes[target].must }; talk.node = "__v"; }
   renderTalk();
@@ -3648,10 +3792,10 @@ $("mn-map").addEventListener("click", () => { closeMenu(); toggleMap(); });
 $("mn-full").addEventListener("click", toggleFull);
 let resetArm = false;
 // a click puts the voice notice away for good (Reset Progress brings it back)
-$("talk-you").addEventListener("click", () => { const m = odMem(); if (!m.noticed) { m.noticed = true; save(); } $("talk-you").hidden = true; });
+$("talk-you").addEventListener("click", () => { const id = (voice && voice.npc) || (talk && talk.id), m = (VNPCS[id] || VNPCS.odman).mem(); if (!m.noticed) { m.noticed = true; save(); } $("talk-you").hidden = true; });
 $("mn-reset").addEventListener("click", e => {
   if (!resetArm) { resetArm = true; e.target.textContent = "Click again to confirm"; setTimeout(() => { resetArm = false; e.target.textContent = "Reset Progress"; }, 3000); return; }
-  Object.assign(state, { shards: [], lit: 0, read: [], gateOpen: false, swords: [], explored: "", zones: [], pos: null, bossDown: false, scene: "tavern", quests: [], met: [], odmem: null, mark: null, who: {} }); boon = null; renderBoon(); odCoolUntil = 0; bossReset(); player.x = TAV_SPAWN[0]; player.y = TAV_SPAWN[1]; boat.riding = false; boat.x = BOAT_HOME[0]; boat.y = BOAT_HOME[1]; boat.vx = boat.vy = 0; state.boatPos = null;
+  Object.assign(state, { shards: [], lit: 0, read: [], gateOpen: false, swords: [], explored: "", zones: [], pos: null, bossDown: false, scene: "tavern", quests: [], met: [], odmem: null, gemem: null, roads: [], words: {}, mark: null, who: {} }); boon = null; renderBoon(); odCoolUntil = 0; bossReset(); player.x = TAV_SPAWN[0]; player.y = TAV_SPAWN[1]; boat.riding = false; boat.x = BOAT_HOME[0]; boat.y = BOAT_HOME[1]; boat.vx = boat.vy = 0; state.boatPos = null;
   explored.fill(0); lastTX = -1; miniDirty = true; shards.forEach(s => s.got = false); save();
   lastXP = null; lastLevel = 1; renderLog(); renderWho();
   e.target.textContent = "Reset Progress"; resetArm = false; closeMenu();
@@ -4335,7 +4479,8 @@ let nearest = null, last = performance.now(), time = 0, lastTX = -1, lastTY = -1
 function update(dt) {
   time += dt;
   odFlareT = Math.max(0, odFlareT - dt * 1.5);
-  const ov = voice && voice.conv ? Math.min(1, voice.conv.getOutputVolume() * 2) : 0; odVol += (ov - odVol) * Math.min(1, dt * 12);
+  geMoodT = Math.min(1, geMoodT + dt * 1.2);
+  const ov = voice && voice.npc === "odman" && voice.conv ? Math.min(1, voice.conv.getOutputVolume() * 2) : 0; odVol += (ov - odVol) * Math.min(1, dt * 12);
   if (started && !dlg && !uiBlocked() && !player.dead && !boat.riding) {
     let vx = (keys.right ? 1 : 0) - (keys.left ? 1 : 0), vy = (keys.down ? 1 : 0) - (keys.up ? 1 : 0);
     player.moving = !!(vx || vy);
