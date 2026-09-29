@@ -2117,10 +2117,10 @@ const ROMAN = ["I", "II", "III", "IV", "V", "VI"];
 const SWORDS = CONTENT.blades.map(b => [b.org, b.role, b.story]);
 const PLACES = CONTENT.places;
 function content(id, idx) {
-  const L = CONTENT.lore, vars = () => ({ email: EMAIL, done: QUESTS.filter(q => q.id !== "gate" && qDone(q)).length });
+  const L = CONTENT.lore, vars = () => ({ email: EMAIL, done: QUESTS.filter(q => q.id !== "gate" && qDone(q)).length, controls: CONTENT.controls[coarse ? "touch" : "keyboard"] });
   const page = p => { const v = vars(); return { ...p, sub: fill(p.sub, v), pages: p.pages.map(x => fill(x, v)) }; };
   switch (id) {
-    case "keep": { const p = page(L.keep); if (idx === "all") p.pages = p.pages.concat(STAGES.map((s, i) => fill(CONTENT.statuePage, { roman: ROMAN[i], who: s.who, t: s.t, body: s.body }))); return p; }
+    case "keep": { const p = page(L.keep); if (idx === "all") p.pages = p.pages.concat(STAGES.map((s, i) => fill(CONTENT.statuePage, { roman: ROMAN[i], name: s.name, t: s.t, body: s.body }))); return p; }
     case "sword": { const s = SWORDS[idx]; return { title: s[0], sub: s[1], pages: [s[2]] }; }
     case "gate": return page(state.gateOpen ? L.gateOpen : L.gateSealed);
     default: return L[id] ? page(L[id]) : undefined;
@@ -3109,7 +3109,7 @@ function showTip(it) {
   if (h.dataset.t !== key) {
     h.dataset.t = key;
     const name = it.id === "statue" ? `Statue ${ROMAN[it.idx]}` : it.id === "sword" ? SWORDS[it.idx][0] : TIP_NAME[it.id];
-    const sub = it.id === "odman" ? "The Burning Man" : it.id === "gehan" ? "Keeper of the Living World" : it.id === "tavdoor" || it.id === "taventer" ? "Door" : it.id === "boat" ? "Row it anywhere on the mere" : it.id === "statue" ? STAGES[it.idx].who : it.id === "sword" ? SWORDS[it.idx][1] : it.id === "dragon" ? "Elite · Prompt Test Service" : "Lore";
+    const sub = it.id === "odman" ? "The Burning Man" : it.id === "gehan" ? "Keeper of the Living World" : it.id === "tavdoor" || it.id === "taventer" ? "Door" : it.id === "boat" ? "Row it anywhere on the mere" : it.id === "statue" ? STAGES[it.idx].name : it.id === "sword" ? SWORDS[it.idx][1] : it.id === "dragon" ? "Elite · Prompt Test Service" : "Lore";
     h.innerHTML = "<b></b><span></span><span class=\"q\"></span><em></em>";
     h.children[0].textContent = name; h.children[1].textContent = sub;
     h.children[2].textContent = isUnread(it) ? "Quest objective" : "";
@@ -3137,7 +3137,7 @@ function interact(it) {
       if (first && state.lit === 6) pages.push("All six fires burn. The change is proven, and a person, never an agent, carries it out into the world.");
       openDialog({ title: `Statue ${ROMAN[i]}`, sub: s.t, pages }, null, { it, kind: s.who, reward: first ? `${XP_FOR.statue} training` : "" });
     } else {
-      subtitle(`Statue ${ROMAN[i]}`, `The statue stays cold. One specialist at a time: light Statue ${ROMAN[state.lit]}, the ${STAGES[state.lit].who}, first.`);
+      subtitle(`Statue ${ROMAN[i]}`, `The statue stays cold. One specialist at a time: light Statue ${ROMAN[state.lit]}, ${STAGES[state.lit].name}, first.`);
       chat("That statue is not ready yet.", "#ff2020"); Snd.play("cold");
     }
     return;
