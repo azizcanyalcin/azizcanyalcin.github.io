@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="What the Realm of Azizcan and its voice character send, keep and forget.">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' blob: https://cdn.jsdelivr.net https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://realm-voice.azizcanyalcin.workers.dev http://localhost:8787 wss://api.elevenlabs.io https://api.elevenlabs.io https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; img-src 'self' data: blob:; media-src blob:; worker-src blob:; base-uri 'none'; form-action 'none'">
+<title>Privacy · Azizcan Yalçın</title>
+<style>
+:root{--bg:#EDF0F2;--ink:#1d2127;--mute:#5a6270;--line:#d4d9de;--link:#2b5fa8}
+@media (prefers-color-scheme:dark){:root{--bg:#121417;--ink:#e6e8eb;--mute:#9aa3ad;--line:#2a2f35;--link:#8db4ef}}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:680px;margin:0 auto;padding:48px 20px 64px}
+h1{font-size:28px;margin:0 0 6px}h2{font-size:18px;margin:32px 0 8px}
+p,li{color:var(--ink)}.mute{color:var(--mute)}ul{padding-left:20px}
+a{color:var(--link)}hr{border:0;border-top:1px solid var(--line);margin:32px 0}
+</style>
+<main>
+  <h1>Privacy</h1>
+  <p class="mute">For azizcanyalcin.github.io and its game, the Realm of Azizcan. Last updated 29 September 2026.</p>
+
+  <h2>The short version</h2>
+  <p>There are no accounts, ads or trackers here. Your game progress stays in your own browser. The only data that leaves your device is your talk with Od-Man, the voice character in the tavern, if you choose to talk by voice.</p>
+
+  <h2>Talking to Od-Man</h2>
+  <p>Od-Man is an AI voice. When you speak with him by voice:</p>
+  <ul>
+    <li><b>Your voice</b> is streamed to <a href="https://elevenlabs.io/privacy-policy" target="_blank" rel="noopener">ElevenLabs</a>, which turns speech into text and his replies into speech. The audio is not recorded.</li>
+    <li><b>A transcript</b> of the talk, and anything you tell him (for example the name, craft and guild he asks for, which you are free to leave out), is kept by ElevenLabs for <b>7 days</b> and then deleted. It is processed by the language model that gives him his words (an OpenAI model, run by ElevenLabs).</li>
+    <li><b>What he remembers of you</b> (the name, craft and guild you gave, and his short notes about past talks) is saved in your browser and sent along at the start of each talk, so each talk's 7-day transcript includes it.</li>
+    <li><b>A bot check.</b> Before a talk starts, <a href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noopener">Cloudflare</a> Turnstile checks that you are a person, and a small Cloudflare service counts talks so no one can use up his voice for everyone. It stores a <b>hashed</b> form of your IP address, never the address itself, and forgets it after <b>48 hours</b>.</li>
+  </ul>
+  <p>If you would rather not use voice, deny the microphone: Od-Man then speaks with you in text, and nothing is sent anywhere.</p>
+
+  <h2>Your game progress</h2>
+  <p>Progress, the name you gave Od-Man and his memory of you are saved in your browser (local storage), and sent only as described above. The menu's <b>Reset Progress</b> deletes all of it.</p>
+
+  <h2>Fonts and code from other hosts</h2>
+  <p>The pages load their fonts from Google Fonts, and the voice code from jsDelivr (only when a voice talk starts). Both see your IP address when the files are fetched.</p>
+
+  <h2>The people in the game</h2>
+  <p>Some figures in the realm are fictional tributes to real colleagues, shown with their consent. The AI voice speaks for no one.</p>
+
+  <h2>Questions or deletion</h2>
+  <p>To ask about your data or have a transcript deleted before the 7 days are up, write to me on <a href="https://www.linkedin.com/in/azizcanyalcin" target="_blank" rel="noopener">LinkedIn</a>.</p>
+  <hr>
+  <p class="mute"><a href="./">Back to the site</a></p>
+</main>
+
+</html>

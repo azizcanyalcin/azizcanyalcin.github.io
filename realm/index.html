@@ -3,6 +3,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="The Realm of Azizcan: a small dark-fantasy pixel game that tells the work of Azizcan Yalçın.">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' blob: https://cdn.jsdelivr.net https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://realm-voice.azizcanyalcin.workers.dev http://localhost:8787 wss://api.elevenlabs.io https://api.elevenlabs.io https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; img-src 'self' data: blob:; media-src blob:; worker-src blob:; base-uri 'none'; form-action 'none'">
 <title>The Realm of Azizcan</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -58,6 +59,7 @@ button{font:inherit;color:inherit}
 .vname{font-family:var(--title);font-weight:700;font-size:13px;letter-spacing:.16em;text-transform:uppercase;color:var(--bone);white-space:nowrap}
 .vname small{font-family:var(--ui);font-weight:500;font-size:12px;letter-spacing:.02em;text-transform:none;color:var(--bone-2);margin-left:10px;max-width:230px;min-width:0;overflow:hidden;text-overflow:ellipsis}
 .vname{display:flex;align-items:baseline;max-width:310px}
+#ts-box{position:fixed;left:50%;top:38%;transform:translate(-50%,-50%);z-index:80}
 #who-name{max-width:190px;min-width:0;flex-shrink:0;overflow:hidden;text-overflow:ellipsis}
 .vrow{display:flex;align-items:center;gap:9px}
 .boon{display:flex;align-items:center;gap:8px;margin-top:6px;font-family:var(--title);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ember)}
@@ -456,7 +458,7 @@ button{font:inherit;color:inherit}
   </div>
   <div class="talk" id="talk" hidden role="dialog" aria-live="polite">
     <div class="talk-portrait"><canvas id="talk-cv" width="48" height="48"></canvas></div>
-    <div class="talk-body"><b class="talk-name" id="talk-name"></b><p class="talk-you" id="talk-you" hidden></p><p class="talk-line" id="talk-line"></p><ol class="talk-choices" id="talk-choices"></ol><span class="talk-more" id="talk-more">E ›</span><span class="talk-ember" id="talk-ember" data-s="connecting" hidden></span><button class="talk-leave" id="talk-leave" type="button" hidden>Leave</button></div>
+    <div class="talk-body"><b class="talk-name" id="talk-name"></b><p class="talk-you" id="talk-you" hidden></p><div id="ts-box"></div><p class="talk-line" id="talk-line"></p><ol class="talk-choices" id="talk-choices"></ol><span class="talk-more" id="talk-more">E ›</span><span class="talk-ember" id="talk-ember" data-s="connecting" hidden></span><button class="talk-leave" id="talk-leave" type="button" hidden>Leave</button></div>
   </div>
   <div class="fade" id="fade" hidden></div>
   <div class="subband" id="subband" hidden><b id="sub-name"></b><p id="sub-line"></p></div>
@@ -3250,7 +3252,7 @@ function talkTo(id) {
   $("talk").hidden = false; $("hint").hidden = true; $("hint").dataset.t = "";
   $("game").classList.add("reading"); Snd.duck(true); Snd.play("open");
   $("talk-name").textContent = `${NPC_REFS[id].name}, ${NPC_REFS[id].title}`;
-  if (id === "odman" && voiceAgent() && !voiceMicDenied) { voiceStart(); return; }
+  if (id === "odman" && voiceOn() && !voiceMicDenied) { voiceStart(); return; }
   renderTalk();
 }
 function renderTalk() {
@@ -3288,15 +3290,28 @@ function drawTalkPortrait(t) {
   if (talk.id === "gehan") drawGehan(g, 24, 90, t, 2);
 }
 // ---------- Od-Man's voice (ElevenLabs Conversational AI) ----------
-// Only public agent ids live here. Each agent accepts its own origin only; the API key stays in .env for tools/agent.py.
-const VOICE_AGENTS = { "realm.localhost": "agent_9501m3jcjj5be4ktrexstjm5k1mq", "azizcanyalcin.github.io": "agent_3601m3kgyskber4948w31yeyh660" };
+// A voice session starts only with a one-time signed URL from the session Worker (worker/), which checks for bots
+// (Turnstile) and counts talks. The page holds no agent id and no key.
+const VOICE_WORKER = {
+  "azizcanyalcin.github.io": { url: "https://realm-voice.azizcanyalcin.workers.dev/session", agent: "prod", sitekey: "0x4AAAAAAFI5NvxRoskDllcw" },
+  "realm.localhost": { url: "http://localhost:8787/session", agent: "dev", sitekey: "1x00000000000000000000BB" },   // wrangler dev; Turnstile's always-pass test key
+};
 const VOICE_SDK = "https://cdn.jsdelivr.net/npm/@elevenlabs/client@1.25.0/dist/lib.iife.js";
-// tests pass their own object (window.__VOICE_T) and may change it mid-run
+const VOICE_SDK_SRI = "sha384-gzDheUfTg5C6QU8UW6SQRA5ZDZz9JR2iCLdLfVq0tGUCTwF5J5m159AVUsrU1M8M";
+const TURNSTILE_SDK = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+// the fixed line sent when a session opens; the prompt answers it with the opening, so nothing the page sends is read aloud
+const OD_KICKOFF = "(The traveller steps up to your hearth.)";
+// tests pass their own object (undefined) and may change it mid-run
 // ElevenLabs refuses new sessions once the plan's credits are spent
 const VOICE_QUOTA_LINE = "My voice is spent — the ElevenLabs credits are used up.";
 const isQuotaError = e => /quota|credits/i.test(String(e && e.message || e));
-const VOICE_T = window.__VOICE_T || { farewell: 270, dismissWait: 10, cool: 60 };
-const voiceAgent = () => window.__VOICE_AGENT_ID !== undefined ? window.__VOICE_AGENT_ID : VOICE_AGENTS[location.hostname] || "";
+const VOICE_T = undefined || { farewell: 155, dismissWait: 10, cool: 60 };
+// tests stand in for the Worker's address (undefined, or null for no voice); the public build reads only VOICE_WORKER
+const voiceCfg = () => undefined !== undefined ? undefined : VOICE_WORKER[location.hostname];
+// another page may embed the realm; the voice stays off there
+const voiceFramed = () => undefined !== undefined ? undefined : window.top !== window.self;
+const voiceOn = () => !voiceFramed() && !!(voiceCfg() && voiceCfg().url);
+const TICKET_LINES = { visitor: "You have drawn on my fire enough for one day, traveller. Speak with me the old way.", day: "My voice is spent for tonight, traveller.", quota: VOICE_QUOTA_LINE };
 const OD_PLACES = { rest: 0, throne: 1, keep: 2, mere: 3, grove: 4, field: 5, gate: 6 };
 const BOONS = { swift: { name: "Swiftfire", t: 90 }, fierce: { name: "Fierce Ember", t: 90 }, warm: { name: "Hearth's Warmth", t: 0 } };
 let boon = null, boonShown = "";
@@ -3404,7 +3419,8 @@ function odMemoryText() {
 function loadVoiceSdk() {
   if (window.ElevenLabsClient) return Promise.resolve(window.ElevenLabsClient);
   if (!sdkP) sdkP = new Promise((ok, no) => {
-    const s = document.createElement("script"); s.src = window.__VOICE_SDK_URL || VOICE_SDK; s.async = true;
+    const s = document.createElement("script"); s.src = undefined || VOICE_SDK; s.async = true;
+    if (s.src === VOICE_SDK) { s.integrity = VOICE_SDK_SRI; s.crossOrigin = "anonymous"; }
     s.onload = () => window.ElevenLabsClient ? ok(window.ElevenLabsClient) : no(new Error("sdk"));
     s.onerror = () => { sdkP = null; no(new Error("sdk")); };
     document.head.appendChild(s);
@@ -3414,11 +3430,12 @@ function loadVoiceSdk() {
 const questState = () => state.lit >= 6 ? "done" : accepted("keep") || state.lit > 0 ? "taken" : "new";
 // every opening ends in one question the traveller can answer out loud
 function odFirstLine() {
-  const name = state.who.name, q = questState(), by = s => name ? `${name}. ${s}` : s;
+  // no name in the opening: the agent speaks these word for word, and the name is text a client can set
+  const name = state.who.name, q = questState();
   if (player.hp < player.maxHp * 0.4) return "You are bleeding embers. Sit by the fire first. Who did this to you?";
-  if (q === "done") return by("All six burn; I felt it from here. Where does your road go now: the Mere, the Grove, or the Gate?");
-  if (q === "taken") return by(state.lit > 0 ? `${["One", "Two", "Three", "Four", "Five"][state.lit - 1]} of six burn in the Keep. Which one holds you back?` : "The Keep still sleeps cold. Have you found it, or shall I mark the way?");
-  if (name) return `${name}, you came back. The Keep's trial still waits. Will you take it this time?`;
+  if (q === "done") return ("All six burn; I felt it from here. Where does your road go now: the Mere, the Grove, or the Gate?");
+  if (q === "taken") return (state.lit > 0 ? `${["One", "Two", "Three", "Four", "Five"][state.lit - 1]} of six burn in the Keep. Which one holds you back?` : "The Keep still sleeps cold. Have you found it, or shall I mark the way?");
+  if (name) return "You came back to the fire. The Keep's trial still waits. Will you take it this time?";
   if (odMem().visits) return "You again. The Keep's trial still waits. Will you take it this time?";
   return "Ah, a new flame out of the dark. I am Od-Man, keeper of this hearth. What name do you carry, traveller?";
 }
@@ -3436,40 +3453,88 @@ function talkVoiceUI(on) {
   if (!on) $("talk-you").hidden = true;
   Snd.duck(on ? "deep" : true);
 }
+let tsP = null, tsId = null, tsWait = null;
+function loadTurnstile() {
+  if (window.turnstile) return Promise.resolve(window.turnstile);
+  if (!tsP) tsP = new Promise((ok, no) => {
+    const s = document.createElement("script"); s.src = TURNSTILE_SDK; s.async = true;
+    s.onload = () => window.turnstile ? ok(window.turnstile) : no(new Error("bot"));
+    s.onerror = () => { tsP = null; no(new Error("bot")); };
+    document.head.appendChild(s);
+  });
+  return tsP;
+}
+// one invisible widget, run once per talk; it only shows itself when Cloudflare wants the traveller to prove they are human
+async function voiceTurnstile(sitekey) {
+  const ts = await loadTurnstile();
+  return new Promise((ok, no) => {
+    tsWait = { ok, no };
+    const done = pass => arg => { const w = tsWait; tsWait = null; if (w) pass ? w.ok(arg) : w.no(Object.assign(new Error("bot"), { code: "bot" })); };
+    if (tsId === null) tsId = ts.render("#ts-box", { sitekey, action: "voice", execution: "execute", appearance: "interaction-only",
+      callback: done(true), "error-callback": done(false), "expired-callback": done(false), "timeout-callback": done(false) });
+    else ts.reset(tsId);
+    ts.execute(tsId);
+  });
+}
+const voiceErr = code => Object.assign(new Error(code), { code });
+// a human may need a while for a Turnstile challenge (VOICE_T.human); the Worker itself gets VOICE_T.connect, then the request is dropped
+async function voiceTicket(v) {
+  const w = voiceCfg();
+  const turnstile = await Promise.race([voiceTurnstile(w.sitekey), new Promise((_, no) => setTimeout(() => no(voiceErr("bot")), (VOICE_T.human || 60) * 1000))]);
+  if (voice !== v) throw voiceErr("stale");
+  const ac = new AbortController(), t = setTimeout(() => ac.abort(), (VOICE_T.connect || 10) * 1000);
+  let r, j;
+  try {
+    r = await fetch(w.url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ turnstile, agent: w.agent }), signal: ac.signal });
+    j = await r.json().catch(() => ({}));
+  } catch (e) { throw voiceErr("upstream"); } finally { clearTimeout(t); }
+  if (!r.ok || !j || typeof j.signedUrl !== "string") throw voiceErr(j && typeof j.error === "string" ? j.error : "upstream");
+  return j.signedUrl;
+}
+// a talk that ends mid-check leaves no widget on screen and no one waiting on it
+function turnstileAbort() {
+  const w = tsWait; tsWait = null; if (w) w.no(voiceErr("bot"));
+  if (tsId !== null && window.turnstile) try { window.turnstile.reset(tsId); } catch (e) {}
+}
 async function voiceStart() {
   const line = odFirstLine(), v = voice = { conv: null, status: "connecting", mode: "speaking", boon: null, leaving: 0, timers: [] };
   talkVoiceUI(true); setEmber("connecting"); $("talk-line").textContent = line;
   const m = odMem();
-  $("talk-you").hidden = !!m.noticed; $("talk-you").textContent = "Your voice goes to ElevenLabs so Od-Man can hear you.";
-  if (!m.noticed) { m.noticed = true; save(); }
+  // the notice shows on every voice talk until the traveller clicks it away
+  const you = $("talk-you"), priv = Object.assign(document.createElement("a"), { href: "../privacy.html", target: "_blank", rel: "noopener", textContent: "Privacy" });
+  you.hidden = !!m.noticed; if (!m.noticed) you.replaceChildren("Your voice goes to ElevenLabs so Od-Man can hear you. Transcripts are kept 7 days. ", priv);
   try { const s = await navigator.mediaDevices.getUserMedia({ audio: true }); s.getTracks().forEach(t => t.stop()); }
   catch (e) { voiceMicDenied = true; if (voice === v) voiceFallback("Od-Man cannot hear you. Speak with him the old way.", false); return; }
   if (voice !== v) return;
   let sdk;
   try { sdk = await loadVoiceSdk(); } catch (e) { if (voice === v) voiceFallback(null, false); return; }
   if (voice !== v) return;
+  const limit = () => new Promise((_, no) => setTimeout(() => no(new Error("timeout")), (VOICE_T.connect || 10) * 1000));
+  let signedUrl;
+  try { signedUrl = await voiceTicket(v); }
+  catch (e) { if (voice === v) voiceFallback(TICKET_LINES[e && e.code] || "The fire gutters…", false); return; }
+  if (voice !== v) return;
   let conv, starting;
   try {
     starting = sdk.Conversation.startSession({
-      // WebRTC does not pass the page origin on to ElevenLabs, and the agent only accepts its own origin
-      agentId: voiceAgent(), connectionType: "websocket",
+      signedUrl, connectionType: "websocket",
       dynamicVariables: odVoiceVars(),
-      overrides: { agent: { firstMessage: line } },
       clientTools: odTools(v),
       onConnect: () => { if (voice !== v) return; v.status = "connected"; voiceConnected(v); },
-      onMessage: ({ source, message }) => { if (voice !== v) return; if (source === "ai") $("talk-line").textContent = odSpoken(message); else { $("talk-you").hidden = false; $("talk-you").textContent = "You: " + message; } },
+      onMessage: ({ source, message }) => { if (voice !== v) return; if (source === "ai") $("talk-line").textContent = odSpoken(message); else if (message !== OD_KICKOFF) { $("talk-you").hidden = false; $("talk-you").textContent = "You: " + message; } },
       onModeChange: ({ mode }) => { if (voice !== v) return; v.mode = mode; setEmber(mode); if (v.leaving) { if (mode === "speaking") v.finalLine = true; else if (v.finalLine) voiceEnd(); } },
       onDisconnect: d => { if (voice !== v) return; if (d && d.reason === "error" && !v.leaving) voiceFallback("The fire gutters…", true); else voiceEnd(); },
       onError: () => {},
     });
     // a connection that never completes must not leave the band waiting forever
-    conv = await Promise.race([starting, new Promise((_, no) => setTimeout(() => no(new Error("timeout")), (VOICE_T.connect || 10) * 1000))]);
+    conv = await Promise.race([starting, limit()]);
   } catch (e) {
     if (starting) starting.then(c => { if (voice !== v) try { c.endSession(); } catch (x) {} }, () => {});   // close a session that arrives too late
     if (voice === v) voiceFallback(isQuotaError(e) ? VOICE_QUOTA_LINE : "My voice is spent for tonight, traveller.", false); return;
   }
   if (voice !== v) { try { conv.endSession(); } catch (e) {} return; }
   v.conv = conv;
+  try { conv.sendUserMessage(OD_KICKOFF); } catch (e) {}
 }
 function voiceConnected(v) {
   odMem().visits++; save();
@@ -3477,6 +3542,7 @@ function voiceConnected(v) {
 }
 function voiceStop() {
   const v = voice; voice = null; if (!v) return;
+  turnstileAbort();
   odMem().lastMood = odMood; save(); setOdMood("calm", true);
   v.timers.forEach(clearTimeout);
   if (v.conv) try { v.conv.endSession(); } catch (e) {}
@@ -3514,7 +3580,7 @@ function openBestiary() {
   ids.forEach(id => {
     const n = NPC_REFS[id];
     if (!met.includes(id)) { pages.push("An unknown figure. Their story has not reached you yet. Look for them where travellers gather."); arts.push("unknown"); links.push(null); return; }
-    pages.push(`${n.name}, ${n.title}. ${n.lore}\n\nIn the waking world: ${n.real}, ${n.role}. For the full account, reach out to ${n.real.split(" ")[0]}.`);
+    pages.push(`${n.name}, ${n.title}. ${n.lore}\n\nIn the waking world: ${n.real}, ${n.role}. For the full account, reach out to ${n.real.split(" ")[0]}.\n\nThese figures are fictional tributes, made with consent. The AI voice speaks for no one.`);
     arts.push("npc:" + id);
     links.push([{ label: "LinkedIn", href: n.linkedin, text: n.linkedinLabel }, n.phone && { label: "Phone", text: n.phone }].filter(Boolean));
   });
@@ -3552,6 +3618,8 @@ $("mn-resume").addEventListener("click", () => { closeMenu(); focusGame(); });
 $("mn-map").addEventListener("click", () => { closeMenu(); toggleMap(); });
 $("mn-full").addEventListener("click", toggleFull);
 let resetArm = false;
+// a click puts the voice notice away for good (Reset Progress brings it back)
+$("talk-you").addEventListener("click", () => { const m = odMem(); if (!m.noticed) { m.noticed = true; save(); } $("talk-you").hidden = true; });
 $("mn-reset").addEventListener("click", e => {
   if (!resetArm) { resetArm = true; e.target.textContent = "Click again to confirm"; setTimeout(() => { resetArm = false; e.target.textContent = "Reset Progress"; }, 3000); return; }
   Object.assign(state, { shards: [], lit: 0, read: [], gateOpen: false, swords: [], explored: "", zones: [], pos: null, bossDown: false, scene: "tavern", quests: [], met: [], odmem: null, mark: null, who: {} }); boon = null; renderBoon(); odCoolUntil = 0; bossReset(); player.x = TAV_SPAWN[0]; player.y = TAV_SPAWN[1]; boat.riding = false; boat.x = BOAT_HOME[0]; boat.y = BOAT_HOME[1]; boat.vx = boat.vy = 0; state.boatPos = null;
