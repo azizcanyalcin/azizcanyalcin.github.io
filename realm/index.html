@@ -2929,7 +2929,7 @@ function drawPortrait(it) {
   sketchShadow(c, W / 2, oy + dh + 4, dw * 0.46, 7);
 }
 function openDialog(c, onClose, opts = {}) {
-  closeMenu(); Snd.play("open"); Snd.duck(true); ensurePaper();
+  closeMap(); closeMenu(); Snd.play("open"); Snd.duck(true); ensurePaper();
   dlg = { c, i: 0, shown: 0, onClose };
   $("dlg").hidden = false; $("hint").hidden = true; $("hint").dataset.t = "";
   $("game").classList.add("reading");
@@ -3186,6 +3186,7 @@ const TALK_TREES = {
 let talk = null;
 function talkTo(id) {
   if (talk) return;
+  closeMap();
   if (id === "odman" && performance.now() < odCoolUntil) { chat("He will not speak to you yet.", "#bfb398"); return; }
   const tree = TALK_TREES[id]();
   talk = { id, tree, node: tree.start };
@@ -3643,6 +3644,7 @@ $("talk-leave").addEventListener("click", e => { e.stopPropagation(); voiceEnd()
 
 // ---------- the Bestiary book ----------
 function openBestiary() {
+  closeMap();
   startGame();
   const ids = Object.keys(NPC_REFS), met = state.met || [];
   const pages = [], arts = [], links = [];
@@ -4493,6 +4495,18 @@ function drawFlame(x, y, t, s, seed) {
 }
 const inView = (x, y, m, cx, cy) => x > cx - m && x < cx + VW + m && y > cy - m && y < cy + VH + m;
 
+// a burning blade's fire, drawn at the blade's own depth in the sorted list
+function drawBladeFire(i, cx, cy, t) {
+  const w = swordTops[i];
+  const at = r => [w.bx + Math.round((26 - r) * w.lean) - cx, w.by - 31 + r - cy];
+  for (let r = 7; r <= 25; r++) {
+    const [bx, by] = at(r), heat = Math.sin(t * 9 + r * 0.9 + i);
+    ctx.fillStyle = heat > 0.4 ? "#ffe08a" : heat > -0.3 ? "#ff9a2a" : "#e0461a";
+    ctx.fillRect(bx, by, 1, 1);
+    if (r > 8) { ctx.fillStyle = heat > 0 ? "#c93f0d" : "#ff7a1f"; ctx.fillRect(bx - 1, by, 1, 1); ctx.fillRect(bx + 1, by, 1, 1); }
+  }
+  [8, 12, 16, 20, 24].forEach((r, k) => { const [fx, fy] = at(r); drawFlame(fx + (k & 1 ? 1 : -1), fy, t, 0.42 + (k === 0 ? 0.2 : 0), i * 7.7 + k * 2.3); });
+}
 function render() {
   const tav = inTav(player.x, player.y);
   let cx = tav ? Math.round(VW >= TAVW ? TAVX + (TAVW - VW) / 2 : Math.min(TAVX + TAVW - VW, Math.max(TAVX, player.x - VW / 2))) : Math.round(Math.min(MPW - VW, Math.max(0, player.x - VW / 2)));
@@ -4554,6 +4568,7 @@ function render() {
   shards.forEach(sh => { if (!sh.got && inView(sh.x, sh.y, 16, cx, cy)) list.push({ base: sh.y, shard: sh }); });
   if (tav) for (const n of TAV_NPCS) list.push({ base: n.y, tn: n });
   if (inView(boat.x, boat.y, 44, cx, cy)) list.push({ base: boat.y + 18, boat: true });
+  state.swords.forEach(i => { const w = swordTops[i]; if (inView(w.bx, w.by, 40, cx, cy)) list.push({ base: w.by + 0.5, blade: i }); });
   if (!player.dead && !boat.riding && !(player.inv > 0 && player.inv < 50 && Math.floor(player.inv * 12) % 2)) list.push({ base: player.y, p: true });
   list.sort((a, b) => a.base - b.base);
   for (const e of list) {
@@ -4583,6 +4598,7 @@ function render() {
     else if (e.od) drawOdman(ctx, Math.round(ODMAN.x - cx), Math.round(ODMAN.y - cy), t, 1);
     else if (e.bossE) drawBoss(cx, cy, t);
     else if (e.boat) drawBoat(cx, cy, t);
+    else if (e.blade !== undefined) drawBladeFire(e.blade, cx, cy, t);
     else if (e.m) drawMob(e.m, cx, cy, t);
     else { const s = e.s; ctx.drawImage(s.cv, Math.round(s.x - s.ax - cx), Math.round(s.y - s.ay - cy)); }
   }
@@ -4605,17 +4621,6 @@ function render() {
     if (!inView(s.x, s.y, 30, cx, cy)) return;
     ctx.fillStyle = "#ffcf6a"; ctx.fillRect(s.x - 2 - cx, s.y - 21 - cy, 1, 1); ctx.fillRect(s.x + 1 - cx, s.y - 21 - cy, 1, 1);
     drawFlame(s.x - cx, s.y - 29 - cy, t, 0.8, i * 5);
-  });
-  state.swords.forEach(i => {
-    const w = swordTops[i]; if (!inView(w.bx, w.by, 40, cx, cy)) return;
-    const at = r => [w.bx + Math.round((26 - r) * w.lean) - cx, w.by - 31 + r - cy];
-    for (let r = 7; r <= 25; r++) {
-      const [bx, by] = at(r), heat = Math.sin(t * 9 + r * 0.9 + i);
-      ctx.fillStyle = heat > 0.4 ? "#ffe08a" : heat > -0.3 ? "#ff9a2a" : "#e0461a";
-      ctx.fillRect(bx, by, 1, 1);
-      if (r > 8) { ctx.fillStyle = heat > 0 ? "#c93f0d" : "#ff7a1f"; ctx.fillRect(bx - 1, by, 1, 1); ctx.fillRect(bx + 1, by, 1, 1); }
-    }
-    [8, 12, 16, 20, 24].forEach((r, k) => { const [fx, fy] = at(r); drawFlame(fx + (k & 1 ? 1 : -1), fy, t, 0.42 + (k === 0 ? 0.2 : 0), i * 7.7 + k * 2.3); });
   });
 
   ctx.drawImage(overCv, cx, cy, VW, VH, 0, 0, VW, VH);
@@ -4879,10 +4884,15 @@ function drawWorldMap(t) {
   wmx.fillStyle = "#e0402a"; wmx.beginPath(); wmx.moveTo(9, 0); wmx.lineTo(-6, -6); wmx.lineTo(-3, 0); wmx.lineTo(-6, 6); wmx.closePath(); wmx.fill();
   wmx.restore();
 }
+// reading something, or a talk, puts the world map away (and opening the map closes what you were reading)
+function closeMap() {
+  if ($("wmap").hidden) return;
+  $("wmap").hidden = true; $("game").classList.remove("mapopen"); Snd.play("mapClose");
+}
 function toggleMap() {
   const m = $("wmap");
   if (m.hidden) { startGame(); closeMenu(); if (dlg) closeDialog(); wmDirty = true; $("wm-zone").textContent = zoneName; m.hidden = false; $("game").classList.add("mapopen"); Snd.play("mapOpen"); }
-  else { m.hidden = true; $("game").classList.remove("mapopen"); Snd.play("mapClose"); }
+  else closeMap();
 }
 
 function frame(now) {
