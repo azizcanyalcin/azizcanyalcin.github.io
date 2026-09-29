@@ -3,7 +3,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="The Realm of Azizcan: a small dark-fantasy pixel game that tells the work of Azizcan Yalçın.">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' blob: https://cdn.jsdelivr.net https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://realm-voice.azizcanyalcin.workers.dev http://localhost:8787 wss://api.elevenlabs.io https://api.elevenlabs.io https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; img-src 'self' data: blob:; media-src blob:; worker-src blob:; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob: https://cdn.jsdelivr.net https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://realm-voice.azizcanyalcin.workers.dev http://localhost:8787 wss://api.elevenlabs.io https://api.elevenlabs.io https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; img-src 'self' data: blob:; media-src blob:; worker-src blob:; base-uri 'none'; form-action 'none'">
 <title>The Realm of Azizcan</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -458,7 +458,7 @@ button{font:inherit;color:inherit}
   </div>
   <div class="talk" id="talk" hidden role="dialog" aria-live="polite">
     <div class="talk-portrait"><canvas id="talk-cv" width="48" height="48"></canvas></div>
-    <div class="talk-body"><b class="talk-name" id="talk-name"></b><p class="talk-you" id="talk-you" hidden></p><div id="ts-box"></div><p class="talk-line" id="talk-line"></p><ol class="talk-choices" id="talk-choices"></ol><span class="talk-more" id="talk-more">E ›</span><span class="talk-ember" id="talk-ember" data-s="connecting" hidden></span><button class="talk-leave" id="talk-leave" type="button" hidden>Leave</button></div>
+    <div class="talk-body"><b class="talk-name" id="talk-name"></b><p class="talk-you" id="talk-you" hidden></p><div id="ts-box" hidden></div><p class="talk-line" id="talk-line"></p><ol class="talk-choices" id="talk-choices"></ol><span class="talk-more" id="talk-more">E ›</span><span class="talk-ember" id="talk-ember" data-s="connecting" hidden></span><button class="talk-leave" id="talk-leave" type="button" hidden>Leave</button></div>
   </div>
   <div class="fade" id="fade" hidden></div>
   <div class="subband" id="subband" hidden><b id="sub-name"></b><p id="sub-line"></p></div>
@@ -3467,9 +3467,10 @@ function loadTurnstile() {
 // one invisible widget, run once per talk; it only shows itself when Cloudflare wants the traveller to prove they are human
 async function voiceTurnstile(sitekey) {
   const ts = await loadTurnstile();
+  const box = $("ts-box"); box.hidden = false;   // shown only while the check runs; a passed check leaves no tick on screen
   return new Promise((ok, no) => {
     tsWait = { ok, no };
-    const done = pass => arg => { const w = tsWait; tsWait = null; if (w) pass ? w.ok(arg) : w.no(Object.assign(new Error("bot"), { code: "bot" })); };
+    const done = pass => arg => { const w = tsWait; tsWait = null; box.hidden = true; if (w) pass ? w.ok(arg) : w.no(Object.assign(new Error("bot"), { code: "bot" })); };
     if (tsId === null) tsId = ts.render("#ts-box", { sitekey, action: "voice", execution: "execute", appearance: "interaction-only",
       callback: done(true), "error-callback": done(false), "expired-callback": done(false), "timeout-callback": done(false) });
     else ts.reset(tsId);
@@ -3494,6 +3495,7 @@ async function voiceTicket(v) {
 // a talk that ends mid-check leaves no widget on screen and no one waiting on it
 function turnstileAbort() {
   const w = tsWait; tsWait = null; if (w) w.no(voiceErr("bot"));
+  $("ts-box").hidden = true;
   if (tsId !== null && window.turnstile) try { window.turnstile.reset(tsId); } catch (e) {}
 }
 async function voiceStart() {
