@@ -83,7 +83,7 @@ button{font:inherit;color:inherit}
 .vmeta .sep{margin:0 6px;color:var(--dim)}
 
 /* ---- minimap + system row + journal (right) ---- */
-.mmap{position:absolute;right:22px;top:18px;z-index:3;width:154px;display:grid;justify-items:center;gap:7px}
+.mmap{position:absolute;right:22px;top:18px;z-index:4;width:154px;display:grid;justify-items:center;gap:7px}
 .mm-ring{position:relative;width:134px;height:134px;border-radius:50%;background:#07060b;box-shadow:0 0 0 1px #000,0 0 0 2px var(--ember),0 0 0 5px rgba(9,7,12,.92),0 0 0 6px rgba(236,225,200,.22),0 8px 22px rgba(0,0,0,.75)}
 .mm-ring canvas{width:100%;height:100%;border-radius:50%;display:block;image-rendering:auto;cursor:pointer}
 .mm-n{position:absolute;left:50%;top:-9px;width:16px;height:16px;transform:translateX(-50%) rotate(45deg);background:var(--ink);box-shadow:0 0 0 1px var(--ember)}
@@ -134,7 +134,7 @@ button{font:inherit;color:inherit}
 .slot .tt{position:absolute;left:calc(100% + 12px);top:50%;transform:translateY(-50%);white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .12s;z-index:6}
 .sys .slot .tt{left:auto;right:0;top:calc(100% + 10px);transform:none}
 .slot:hover .tt,.slot:focus-visible .tt{opacity:1}
-.tt{background:var(--panel);box-shadow:inset 0 0 0 1px var(--line),0 8px 20px rgba(0,0,0,.7);padding:7px 11px;text-align:left}
+.tt{background:#0e0b11;box-shadow:inset 0 0 0 1px var(--line),0 8px 20px rgba(0,0,0,.7);padding:7px 11px;text-align:left}
 .tt b{display:block;font-family:var(--title);font-weight:700;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ember-hi)}
 .tt span{display:block;font-size:12px;color:var(--bone-2)}
 
@@ -182,9 +182,9 @@ button{font:inherit;color:inherit}
 .tome-page.left canvas{position:absolute;left:6%;right:6%;top:6%;width:88%;height:78%;mix-blend-mode:multiply;image-rendering:pixelated}
 .tome-caption{position:relative;margin:0;font-family:var(--book);font-style:italic;font-size:clamp(14px,1.3vw,17px);color:rgba(60,34,14,.8)}
 .tome-caption span:first-child{font-style:normal;text-transform:uppercase;letter-spacing:.12em;font-size:.85em}
-.tome-page.right{display:flex;flex-direction:column;padding:9% 12% 8.5% 9%;cursor:pointer}
+.tome-page.right{display:flex;flex-direction:column;padding:15% 12% 8.5% 9%;cursor:pointer}
 .tome-content{flex:1;display:flex;flex-direction:column;min-height:0}
-.tome-title{margin:0 0 .15em;font-family:var(--book);font-weight:400;font-size:clamp(28px,3.3vw,46px);line-height:1.02;text-align:center;color:#3a2210;text-shadow:0 0 1px rgba(58,34,16,.4)}
+.tome-title{margin:0 0 .45em;font-family:var(--book);font-weight:400;font-size:clamp(28px,3.3vw,46px);line-height:1.02;text-align:center;color:#3a2210;text-shadow:0 0 1px rgba(58,34,16,.4)}
 .tome-page.right h3{margin:0 0 1em;font-family:var(--book);font-style:italic;font-weight:400;font-size:clamp(14px,1.25vw,17px);text-align:center;color:#7a3a14}
 .tome-page.right h3:empty{display:none}
 .tome-text{white-space:pre-line;flex:1;margin:0;font-family:"EB Garamond", Georgia, serif;font-size:clamp(16px,1.5vw,20px);line-height:1.5;text-align:justify;hyphens:auto;color:#2c1a0a;overflow:auto}
@@ -221,7 +221,7 @@ button{font:inherit;color:inherit}
 @media (max-width:760px){
   .tome{grid-template-columns:1fr;grid-template-rows:34% 1fr;aspect-ratio:auto;height:calc(100vh - 40px);width:100%}
   .tome-page.left{padding:0 6% 4%}.tome-page.left canvas{top:4%;height:80%}
-  .tome-page.right{padding:7% 8% 5%}
+  .tome-page.right{padding:12% 8% 5%}
   .tome-sheet{display:none}
   .tome-margin{position:static;transform:none;margin-top:10px;white-space:normal}
 }
@@ -561,6 +561,10 @@ button{font:inherit;color:inherit}
 </div>
 
 <script>
+// All the realm's text lives in content/en.json; it is loaded before the game starts.
+// {name} in a text marks a value the game fills in (fill below).
+let CONTENT = null;
+const fill = (s, v) => String(s).replace(/\{(\w+)\}/g, (m, k) => Object.prototype.hasOwnProperty.call(v, k) ? v[k] : m);
 const __main = () => {
 "use strict";
 const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -850,14 +854,7 @@ function brazier(x, y) {
 brazier(440, 138); brazier(600, 138);
 
 // Keep: statues + banner
-const STAGES = [
-  { who: "prompt-tester", t: "Reproduce the failure", body: "Every change starts with evidence. The tester writes a test that captures the bug and runs it against the live prompt until it fails for the right reason.", rule: "No red, no fix." },
-  { who: "test-validator", t: "Review the tests", body: "A second reviewer, allowed only to read, checks that the tests follow the product spec, can really catch the defect, and do not overfit one transcript.", rule: "The author of a suite can never approve it." },
-  { who: "prompt-engineer", t: "Make the leanest fix", body: "The engineer finds the prompt line that causes the behaviour and makes the smallest edit that fixes it. If the model is obeying its prompt, the test is what gets fixed.", rule: "Instructions in English, Turkish only in examples." },
-  { who: "prompt-test-service", t: "Measure it green", body: "Only the affected tests run, three times each, scored by an LLM judge. A split result means the prompt contradicts itself, not that the model is noisy.", rule: "Known reds are probed once first. Only greens earn three runs." },
-  { who: "elevenlabs-agent-clone-test", t: "Prove it on a clone", body: "Voice changes run on a clone of the live ElevenLabs agent, with its real runtime, tools and speech settings.", rule: "A green harness alone never finishes voice work." },
-  { who: "a human", t: "Ship with a record", body: "The diff, the red, the green and the clone run come back together. A person reads them and commits, and the lessons go to shared memory.", rule: "Agents never push." },
-];
+const STAGES = CONTENT.statues;
 const STATUE_POS = [[8, 20], [12, 20], [16, 20], [16, 27], [12, 27], [8, 27]];
 const statues = STATUE_POS.map(([tx, ty], i) => {
   const x = tx * TS + 8, y = ty * TS + 10;
@@ -2002,16 +1999,7 @@ function drawGehan(g, bx, by, t, s) {
 inter.push({ id: "gehan", x: GEHAN.x, y: GEHAN.y + 10, r: 34, my: 42, mx: GEHAN.x, myAbs: GEHAN.y, label: "Speak with Gehan" });
 
 // Shards
-const AGENTS = [
-  { name: "Customer support", d: "An electronics retailer's phone line and WhatsApp desk." },
-  { name: "Freight presales", d: "Outbound calls that qualify shipments for a logistics platform." },
-  { name: "Lead qualification", d: "Outbound calls for a hair clinic, with strict rules for a qualified lead." },
-  { name: "Fintech reactivation", d: "Win-back calls, with conversion likelihood scored after each one." },
-  { name: "Restaurant ordering", d: "Takes orders by phone and quotes prices from the live menu." },
-  { name: "Appointment booking", d: "Checks the real calendar before it confirms a slot." },
-  { name: "NPS & satisfaction", d: "Surveys that branch on the score and route unhappy customers." },
-  { name: "Post-call messaging", d: "WhatsApp follow-ups that pick up where a call left off." },
-];
+const AGENTS = CONTENT.shards;
 const blockedPx = (x, y, w = 4, h = 3) => {
   if (inTav(x, y)) return tavBlocked(x, y, w, h);
   for (const [cx, cy] of [[x - w, y - h], [x + w, y - h], [x - w, y + 1], [x + w, y + 1]]) if (BLOCK.has(get(Math.floor(cx / TS), Math.floor(cy / TS)))) return true;
@@ -2126,58 +2114,16 @@ const FR = Object.fromEntries(Object.entries(HERO).map(([k, v]) => [k, v.walk]))
 // ---------- content ----------
 const EMAIL = "azizcanyalcin@gmail.com";
 const ROMAN = ["I", "II", "III", "IV", "V", "VI"];
-const SWORDS = [
-  ["Istanbul Metropolitan Municipality", "Software Engineer Intern · 2025", ".NET back-end for Yuvamız İstanbul, serving 111 kindergartens and more than 17,000 students. Domain-driven design, CQRS with MediatR, and TDD to 90% test coverage."],
-  ["Mutlu Medya", "Computer Vision Intern · 2024", "Real-time visitor counting for event venues with OpenCV and a TensorFlow detector. Returning guests were tracked so no one was counted twice."],
-  ["Istanbul Metropolitan Municipality", "Software Engineer Intern · 2023", "Model-driven domain design with stakeholders, plus WebSockets and gRPC for real-time online and offline employee tracking."],
-  ["Eduvelo", "Side project", "A gamified reading app that turns dry text into quizzes. FastAPI, an OpenAI quiz pipeline for long content, Server-Sent Events, and React Native with Expo."],
-  ["Breast Cancer Diagnosis", "Side project", "96.79% accuracy with a multilayer perceptron on the UCI dataset, compared against KNN and Naive Bayes, with full preprocessing and metric charts."],
-  ["Valor's Echo", "Side project", "A 2D action RPG made in Unity, with loot, stats, a skill system and quests. This little realm is its descendant."],
-  ["Book A Barber", "Side project", "Appointment booking for mobile and web in React Native and React, with Redux, custom hooks and time-slot generation."],
-  ["ML-Agents Fundamentals", "Side project", "Agents trained with reinforcement learning in Unity ML-Agents to make decisions and adapt."],
-];
-const PLACES = [
-  { id: "sign", name: "The Wayfarer's Sign" },
-  { id: "throne", name: "Throne of Prompts" },
-  { id: "keep", name: "Keep of the Factory" },
-  { id: "dragon", name: "The Judge of the Mere" },
-  { id: "oracle", name: "The Luminous Grove" },
-  { id: "field", name: "Field of Old Quests" },
-  { id: "gate", name: "Gate of Production" },
-];
+const SWORDS = CONTENT.blades.map(b => [b.org, b.role, b.story]);
+const PLACES = CONTENT.places;
 function content(id, idx) {
-  const n = state.shards.length;
+  const L = CONTENT.lore, vars = () => ({ email: EMAIL, done: QUESTS.filter(q => q.id !== "gate" && qDone(q)).length });
+  const page = p => { const v = vars(); return { ...p, sub: fill(p.sub, v), pages: p.pages.map(x => fill(x, v)) }; };
   switch (id) {
-    case "sign": return { title: "The Wayfarer's Sign", sub: "Azizcan Yalçın · AI Engineer", arts: ["wayfarer", "map", "compass"], pages: [
-      "Here walks Azizcan Yalçın, AI engineer at Dring AI in Istanbul. He builds voice and chat agents that answer the phone for call centers, in Turkish and English.",
-      "Seven places in this realm hold his work. Eight voice shards lie in the grass, one for each kind of agent he has shipped. Finish every quest and gather them all, and the gate in the north-east will wake.",
-      "Walk with WASD or the arrow keys. Press E to read what you find and Space to swing your blade. Your journal, on the right, keeps every quest you take up."] };
-    case "throne": return { title: "Throne of Prompts", sub: "Prompt Service · 493 commits", pages: [
-      "From this throne, 141 prompt scrolls govern the agents of more than twenty companies: voice prompts, chat prompts, and the analyzers that judge each call once it ends.",
-      "Voice prompts are written for the ear, with pacing, filler words and numbers read aloud. The instructions stay in English. Turkish lives only in the examples.",
-      "The date and time are always written last, so the long text before them can be cached and reused on every call."] };
-    case "keep": return { title: "Keep of the Factory", sub: "Agent Factory · 243 commits", pages: [
-      "A Claude Code workspace where six specialist agents and twenty skills carry every prompt change through the same trial.",
-      "Light the six statues in order to walk that trial. One specialist at a time: each stage hands back its file hashes before the next one begins.",
-      ...(idx === "all" ? STAGES.map((s, i) => `Statue ${ROMAN[i]}, the ${s.who}: ${s.t}. ${s.body}`) : [])] };
-    case "dragon": return { title: "The Judge of the Mere", sub: "Prompt Test Service · 170 commits", pages: [
-      "I am the Judge. Every prompt that seeks passage is tried here: simulated calls, mocked tools, and every criterion weighed by my eye.",
-      "My mere is the Prompt Test Service, built on FastAPI and PostgreSQL. It runs 388 suites over HTTP, three times over, to tell a true regression from the moods of the model.",
-      "A split verdict means the prompt argues with itself. A failed transport is never a pass. Go now, traveller, and never say 'anladım'."] };
-    case "oracle": return { title: "The Great Cap", sub: "RAG & Tools Services · 74 commits", pages: [
-      "Each glowing cap in this grove holds one company's knowledge. The RAG service reads them from per-tenant LanceDB indexes and gives agents what they need to answer.",
-      "Under the roots runs the tools service. Every action is defined once there, like calendar booking, distance pricing and restaurant orders, and chat, voice and post-call workflows all draw from the same well."] };
-    case "field": return { title: "Field of Old Quests", sub: "Studies, internships, side projects", pages: [
-      "Every blade here marks earlier work: internships and side projects, planted where they were won. Read a blade and its fire wakes.",
-      "Doğuş University, BS in Computer Engineering, taught in English, 2018 to 2025. CS50x from Harvard in 2021, and Supervised Machine Learning from DeepLearning.AI in 2022.", ...(idx === "all" ? SWORDS.map(w => `${w[0]} (${w[1]}): ${w[2]}`) : [])] };
+    case "keep": { const p = page(L.keep); if (idx === "all") p.pages = p.pages.concat(STAGES.map((s, i) => fill(CONTENT.statuePage, { roman: ROMAN[i], who: s.who, t: s.t, body: s.body }))); return p; }
     case "sword": { const s = SWORDS[idx]; return { title: s[0], sub: s[1], pages: [s[2]] }; }
-    case "gate": return state.gateOpen
-      ? { title: "Gate of Production", sub: "All eight shards gathered", pages: [
-          "The runes burn and the gate stands open. Beyond it a real phone is ringing: every agent you gathered is answering calls in production.",
-          `You have walked the whole realm. To talk to the one who built it, write to ${EMAIL}, or find azizcanyalcin on GitHub and LinkedIn.`] }
-      : { title: "Gate of Production", sub: `Sealed · ${QUESTS.filter(q => q.id !== "gate" && qDone(q)).length} of 7 quests`, pages: [
-          `The runes are cold. They wake only for one who has finished every quest of the realm: every place read, every statue lit, every blade burning and all eight voice shards carried. You have finished ${QUESTS.filter(q => q.id !== "gate" && qDone(q)).length} of 7.`,
-          `If you would reach the gate's keeper now, write to ${EMAIL}, or find azizcanyalcin on GitHub and LinkedIn.`] };
+    case "gate": return page(state.gateOpen ? L.gateOpen : L.gateSealed);
+    default: return L[id] ? page(L[id]) : undefined;
   }
 }
 
@@ -2706,15 +2652,16 @@ function questVisible(q) {
   if (q.id === "sign") return state.scene !== "tavern" || has("sign");
   return has("sign") || q.obj().some(([, v]) => v > 0);
 }
+const QT = CONTENT.quests, qo = (id, i) => QT[id].objectives[i];
 const QUESTS = [
-  { id: "sign", title: "A Wayfarer's Welcome", obj: () => [["Read the Wayfarer's Sign", +has("sign"), 1]] },
-  { id: "throne", title: "The Throne of Prompts", obj: () => [["Read the throne in the northern hall", +has("throne"), 1]] },
-  { id: "keep", title: "Trial of the Factory", obj: () => [["Statues lit, in order", state.lit, 6]] },
-  { id: "dragon", title: "Audience with the Judge", obj: () => [["Speak with the Judge of the Mere", +has("dragon"), 1]] },
-  { id: "oracle", title: "Whispers of the Grove", obj: () => [["Listen to the Great Cap", +has("oracle"), 1]] },
-  { id: "field", title: "Blades of Old Quests", obj: () => [["Read the Field's sign", +has("field"), 1], ["Blades set alight", state.swords.length, 8]] },
-  { id: "shards", title: "Voices in the Grass", obj: () => [["Voice shards gathered", state.shards.length, 8]] },
-  { id: "gate", title: "The Gate of Production", obj: () => [["Finish every other quest", QUESTS.filter(q => q.id !== "gate" && qDone(q)).length, 7], ["Defeat the guardian of the gate", +!!state.bossDown, 1], ["Pass through the open gate", +has("gateFinal"), 1]] },
+  { id: "sign", title: QT.sign.title, obj: () => [[qo("sign", 0), +has("sign"), 1]] },
+  { id: "throne", title: QT.throne.title, obj: () => [[qo("throne", 0), +has("throne"), 1]] },
+  { id: "keep", title: QT.keep.title, obj: () => [[qo("keep", 0), state.lit, 6]] },
+  { id: "dragon", title: QT.dragon.title, obj: () => [[qo("dragon", 0), +has("dragon"), 1]] },
+  { id: "oracle", title: QT.oracle.title, obj: () => [[qo("oracle", 0), +has("oracle"), 1]] },
+  { id: "field", title: QT.field.title, obj: () => [[qo("field", 0), +has("field"), 1], [qo("field", 1), state.swords.length, 8]] },
+  { id: "shards", title: QT.shards.title, obj: () => [[qo("shards", 0), state.shards.length, 8]] },
+  { id: "gate", title: QT.gate.title, obj: () => [[qo("gate", 0), QUESTS.filter(q => q.id !== "gate" && qDone(q)).length, 7], [qo("gate", 1), +!!state.bossDown, 1], [qo("gate", 2), +has("gateFinal"), 1]] },
 ];
 const qDone = q => q.obj().every(([, v, m]) => v >= m);
 const XP_PER_LEVEL = 230, MAX_LEVEL = 10;
@@ -2773,16 +2720,7 @@ function renderLog() {
   }
   lastXP = xp; lastLevel = level; lastDoneSet = doneSet;
 }
-const QUEST_HINTS = {
-  sign: { where: "The southern edge of the realm", pages: ["Where the road begins, beside a campfire at the southern edge of the realm, a weathered sign waits for those who arrive.", "It knows the name of the one who shaped this land, and what he asks of travellers."], reward: 100 },
-  throne: { where: "North, at the end of the stone road", pages: ["Follow the stone road north until it ends at a hall of grey walls. A red carpet runs to a seat that no one sits on.", "They say the throne remembers every word ever given to the agents of this realm. Stand before it and it may speak."], reward: 150 },
-  keep: { where: "West of the crossroads", pages: ["West of the crossroads, behind broken walls, six hooded figures of stone stand cold.", "They will not wake all at once. Each asks to be woken in its proper turn, and only then does the next one listen."], reward: 300 },
-  dragon: { where: "East, beside the violet mere", pages: ["East of the road the land gives way to a violet mere, and a blood-red moon lies drowned in it.", "Something old rests half in the water there. It weighs every word it hears. Go, if you wish to be judged."], reward: 150 },
-  oracle: { where: "South-west, where the ground glows", pages: ["In the south-west the trees part and the ground turns blue and cold. Mushrooms taller than a man glow in the dark there.", "The greatest of them is said to whisper about where knowledge is kept, and about the hands that do the realm's work."], reward: 150 },
-  field: { where: "South-east, in the red grass", pages: ["To the south-east the grass turns the colour of old blood. Blades stand planted in the earth, cold and silent.", "Each is a quest from an earlier age. Remember them one by one, and they may burn again. A sign at the field's edge tells more."], reward: 370 },
-  shards: { where: "Anywhere off the beaten path", pages: ["Eight fragments of voices lie scattered through the realm: in the grass, at the edges of the woods, sometimes far from any road.", "Each one is an agent that once answered a real call. They glow faintly in the dark. The map remembers those you have passed but left behind."], reward: 600 },
-  gate: { where: "The far north-east, above rivers of fire", pages: ["In the far north-east the land rises into black rock and horned stone. A sealed gate sleeps there, above rivers of fire.", "It is said to open only for one who has finished every other quest of the realm, and something vast and broken keeps watch before it. What lies beyond is for that traveller alone."], reward: 200 },
-};
+const QUEST_HINTS = CONTENT.questHints;
 function openQuest(q) {
   startGame();
   const h = QUEST_HINTS[q.id], done = qDone(q);
@@ -3219,20 +3157,7 @@ function interact(it) {
 }
 
 // ---------- NPCs: who they are in the waking world (Bestiary) ----------
-const NPC_REFS = {
-  odman: {
-    name: "Od-Man", title: "The Burning Man",
-    lore: "Keeper of the Ember Tavern's hearth. He burns, but he never burns out, and every newcomer who warms their hands at his fire is sent on toward the Keep.",
-    real: "Osman Kahraman", role: "AI at ING Hub",
-    linkedin: "https://tr.linkedin.com/in/osman-kahraman", linkedinLabel: "linkedin.com/in/osman-kahraman",
-  },
-  gehan: {
-    name: "Gēhān", title: "Keeper of the Living World",
-    lore: "He tends the wild spring in the Ember Tavern. On his back he carries a small world woven like a nest, and every light sleeping in it is a life he looks after.",
-    real: "Cihan Delipınar", role: "Software Architect at İBB, Yuvamız İstanbul",
-    linkedin: "https://tr.linkedin.com/in/mustafa-cihan-delipinar", linkedinLabel: "linkedin.com/in/mustafa-cihan-delipinar",
-  },
-};
+const NPC_REFS = CONTENT.npcs;
 function acceptQuest(id) {
   if (accepted(id)) return;
   state.quests = (state.quests || []).concat(id); save();
@@ -3247,47 +3172,16 @@ function meet(id) {
 }
 
 // ---------- conversation band ----------
+// the scripted talks: their words and shape live in the content; the code picks the tree and binds the accept choice
+const TALK_QUEST = { odman: "keep", gehan: "field" };
+function talkTree(id, phase) {
+  const src = CONTENT.talk[id][phase], nodes = {};
+  for (const [k, n] of Object.entries(src.nodes)) nodes[k] = n.choices ? { ...n, choices: n.choices.map(c => ({ ...c, act: () => acceptQuest(TALK_QUEST[id]) })) } : { ...n };
+  return { start: src.start, nodes };
+}
 const TALK_TREES = {
-  gehan: () => {
-    const done = state.swords.length >= 8, took = accepted("field") || state.swords.length > 0;
-    if (done) return { start: "a", nodes: {
-      a: { text: "Eight blades burning in the field. Every road you walked is lit now, and none of them was wasted.", next: "b" },
-      b: { text: "Sit by the water whenever you like. The spring does not tire, and neither do nests." },
-    } };
-    if (took) return { start: "a", nodes: {
-      a: { text: "The field lies in the south-east of the realm, past the old stones. Eight blades wait there in the earth, cold.", next: "b" },
-      b: { text: "Read its sign first. Then wake them one by one. Each one remembers a road you have already walked." },
-    } };
-    return { start: "a", nodes: {
-      a: { text: "Come, sit by the water a moment. The spring here runs wild, as springs should. I am Gēhān.", next: "b" },
-      b: { text: "A world is only nests, stitched together. I keep a hundred and eleven of them, and seventeen thousand small lights asleep inside.", next: "c" },
-      c: { text: "Every nest is built from old work. In the south-east of the realm lies a field where eight blades stand in the earth, each one a road you already walked. Set them alight, and remember.", choices: [
-        { label: "Accept the trial", next: "yes", act: () => acceptQuest("field") },
-      ], must: true },
-      yes: { text: "Good. Read the field's sign, then wake each blade. The burning one by the hearth will say I talk too much. He is right." },
-    } };
-  },
-  odman: () => {
-    const done = state.lit >= 6, took = accepted("keep") || state.lit > 0;
-    // a node without next or choices ends the conversation on continue
-    if (done) return { start: "a", nodes: {
-      a: { text: "You carry the Keep's fire now. I can smell it on you. Good. Six woke in their order, and not one before its time.", next: "b" },
-      b: { text: "The rest of the realm is waiting. Warm yourself whenever you like. This hearth does not go out." },
-    } };
-    if (took) return { start: "a", nodes: {
-      a: { text: "The Keep lies west of the crossroads, behind broken walls. Six hooded statues wait there, cold.", next: "b" },
-      b: { text: "Read the banner first. Then wake them in their order, one at a time. A fire lit too early only smokes." },
-    } };
-    // the first meeting has one way out: taking up the trial
-    return { start: "a", nodes: {
-      a: { text: "Ah. A new flame walks in out of the dark. Sit, if you like. I am Od-Man. I burn, but I do not burn out.", next: "b" },
-      b: { text: "Out there lies a realm raised by a single engineer. Its first trial waits in the Keep of the Factory, west of the crossroads.", next: "more" },
-      more: { text: "Six hooded statues guard the Keep. Each is a specialist: one who finds the failure, one who judges the tests, one who mends the words, and more. Wake them in order and you will learn how a change is proven.", choices: [
-        { label: "Accept the trial", next: "yes", act: () => acceptQuest("keep") },
-      ], must: true },
-      yes: { text: "Good. Take the door behind you. The night is long, but the road is marked. Come back and tell me when all six burn." },
-    } };
-  },
+  gehan: () => talkTree("gehan", state.swords.length >= 8 ? "done" : accepted("field") || state.swords.length > 0 ? "taken" : "first"),
+  odman: () => talkTree("odman", state.lit >= 6 ? "done" : accepted("keep") || state.lit > 0 ? "taken" : "first"),
 };
 let talk = null;
 function talkTo(id) {
@@ -5003,7 +4897,10 @@ render();
 $("enter").disabled = false; $("loading").hidden = true;
 requestAnimationFrame(frame);
 };
-requestAnimationFrame(() => setTimeout(__main, 30));
+// tests hand the content in directly (window.__CONTENT), since a file:// page cannot fetch
+(window.__CONTENT ? Promise.resolve(window.__CONTENT) : fetch("content/en.json", { cache: "no-cache" }).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }))
+  .then(c => { CONTENT = c; requestAnimationFrame(() => setTimeout(__main, 30)); },
+        () => { document.getElementById("loading").textContent = "The realm could not load. Please reload the page."; });
 </script>
 
 </html>
