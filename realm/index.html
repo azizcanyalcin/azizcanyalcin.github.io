@@ -273,7 +273,7 @@ button{font:inherit;color:inherit}
 #game.mapopen .bossbar{opacity:0}
 
 /* ---- title ---- */
-.title{position:absolute;inset:0;z-index:8;display:grid;place-items:center;text-align:center;padding:20px;background:radial-gradient(ellipse at 50% 55%,rgba(9,7,12,.25),rgba(0,0,0,.9) 75%)}
+.title{position:absolute;inset:0;z-index:8;display:grid;place-items:center;text-align:center;padding:20px;background:radial-gradient(ellipse at 50% 45%,rgba(6,4,10,.45),rgba(6,4,10,.15) 45%,rgba(0,0,0,.7) 100%),url("img/title.jpg") center/cover no-repeat #07050a;transition:opacity .42s ease}
 .title h1{margin:0;font-family:var(--title);font-weight:600;font-size:clamp(38px,7.2vw,96px);line-height:1;letter-spacing:.06em;color:var(--bone);text-shadow:0 3px 0 #000,0 0 40px rgba(232,150,74,.25)}
 .title h1 br{display:none}
 .title .sub{margin:18px auto 0;width:max-content;max-width:90vw;padding:0 3.2em;position:relative;font-family:var(--title);font-weight:700;font-size:clamp(11px,1.3vw,14px);letter-spacing:.34em;text-transform:uppercase;color:var(--ember)}
@@ -284,6 +284,25 @@ button{font:inherit;color:inherit}
 .title .loading{margin:18px 0 0;font-family:var(--title);font-size:11.5px;letter-spacing:.3em;text-transform:uppercase;color:var(--dim);animation:blinkl 1.4s ease-in-out infinite}
 @keyframes blinkl{50%{opacity:.35}}
 .title .keys{margin:22px 0 0;font-size:12.5px;color:var(--dim)}
+/* the title before the game: the realm tours behind it; a key wakes the theme, Enter asks for the microphone */
+.title.leave{opacity:0}
+@media (max-aspect-ratio:1/1){.title{background-position:center,24% center}}   /* upright screens keep the tavern and its fire in view */
+.t-body{position:relative}
+.t-embers{position:absolute;inset:0;overflow:hidden;pointer-events:none}
+.t-embers i{position:absolute;bottom:-8px;width:2px;height:2px;background:var(--ember-hi);box-shadow:0 0 6px var(--ember);opacity:0;animation:tRise linear infinite}
+@keyframes tRise{0%{transform:translate(0,0);opacity:0}12%{opacity:.9}100%{transform:translate(var(--dx),-92vh);opacity:0}}
+.title .press{margin:44px 0 0;font-family:var(--title);font-size:12.5px;letter-spacing:.34em;text-transform:uppercase;color:var(--bone-2);animation:blinkl 2.2s ease-in-out infinite}
+.title .prep,.title[data-phase=fail] .wbtn,.title[data-phase=fail] .t-mic,.title[data-phase=fail] .t-bar{display:none}
+.title:not([data-phase=idle]) .press{display:none}
+.title:not([data-phase=idle]) .prep{display:block}
+.t-bar{width:min(300px,70vw);height:2px;margin:40px auto 0;background:rgba(232,150,74,.16)}
+.t-bar i{display:block;height:100%;width:0;background:var(--ember);box-shadow:0 0 8px var(--ember);transition:width .5s ease}
+.title .prep .loading{margin:10px 0 0;animation:none}
+.title[data-phase=ready] .prep .loading{visibility:hidden}
+.title .prep .wbtn{margin-top:22px}
+.t-mic{margin:12px auto 0;max-width:34em;font-family:var(--serif);font-style:italic;font-size:13px;color:var(--dim)}
+.t-mic a{color:var(--ember)}
+@media (prefers-reduced-motion:reduce){.t-embers{display:none}}
 
 /* ---- world map (Diablo IV parchment, kept) ---- */
 .wmap{position:absolute;inset:0;z-index:6;pointer-events:none;background:radial-gradient(ellipse at 50% 50%,rgba(20,14,8,.28),rgba(0,0,0,.62));display:grid;grid-template-rows:auto 1fr auto;padding:16px clamp(12px,3vw,40px)}
@@ -556,15 +575,22 @@ button{font:inherit;color:inherit}
     <div class="pad-r"><button type="button" class="abtn atk" id="atkbtn" aria-label="Attack">⚔&#xFE0E;</button><button type="button" class="abtn" id="abtn" aria-label="Interact">E</button></div>
   </div>
 
-  <div class="title" id="title">
-    <div>
+  <div class="title" id="title" data-phase="idle">
+    <div class="t-embers" id="t-embers" aria-hidden="true"></div>
+    <div class="t-body">
       <h1>The Realm<br> of Azizcan</h1>
       <p class="sub">Seven places · Eight voice shards</p>
       <p class="who">The work of Azizcan Yalçın, AI Engineer at Dring AI</p>
-      <button class="wbtn" type="button" id="enter" disabled>Enter the Realm</button>
-      <p class="loading" id="loading">Loading the realm…</p>
+      <p class="press" id="press">Press any key</p>
+      <div class="prep">
+        <div class="t-bar"><i id="t-bar"></i></div>
+        <p class="loading" id="loading">Loading the realm…</p>
+        <button class="wbtn" type="button" id="enter" disabled>Enter the Realm</button>
+        <p class="t-mic">Entering asks for your microphone, so the keepers can hear you. <a href="../privacy.html" target="_blank" rel="noopener">Privacy</a></p>
+      </div>
       <p class="keys" id="title-keys">WASD to walk · E to interact · Space to attack · M map · L journal · B bestiary · Esc menu</p>
     </div>
+    <audio id="theme" src="audio/theme.mp3" preload="auto" loop></audio>
   </div>
 </div>
 
@@ -2734,7 +2760,8 @@ function playClip(src, fallback, vol = 1) {
   const a = clip(src).cloneNode(); a.volume = Math.min(1, Snd.cfg.master * Snd.cfg.sfx * vol);
   a.play().catch(fallback);
 }
-["audio/swing.mp3", "audio/swing-3.mp3", "audio/flesh.mp3"].forEach(clip);
+const CLIP_FILES = ["audio/swing.mp3", "audio/swing-3.mp3", "audio/flesh.mp3", "audio/blade-ignite.mp3", "audio/gate-awakens.mp3"];
+CLIP_FILES.forEach(clip);
 function renderLog() {
   wmDirty = true;
   if (!state.gateOpen && QUESTS.every(q => q.id === "gate" || qDone(q))) {
@@ -3895,9 +3922,64 @@ if (innerWidth < 700) toggleTracker();
 const keys = {};
 const KEYMAP = { ArrowUp: "up", KeyW: "up", ArrowDown: "down", KeyS: "down", ArrowLeft: "left", KeyA: "left", ArrowRight: "right", KeyD: "right" };
 let started = false;
+// ---------- the title ----------
+// Before the game a painting of the realm stands behind the title. The first key or tap wakes the theme and shows what is still loading;
+// Enter asks for the microphone once, so no permission prompt ever interrupts play, then the game starts.
+let titlePhase = "idle";
+const TITLE_T = { fade: 2, cap: 8, mic: 15 };
+const theme = $("theme"), wait = ms => new Promise(ok => setTimeout(ok, ms));
+const themeVol = () => Math.min(1, Snd.cfg.master * Snd.cfg.music);
+function fadeAudio(a, to, s, done) {
+  clearInterval(a._fade); const from = a.volume, t0 = performance.now();
+  a._fade = setInterval(() => { const k = Math.min(1, (performance.now() - t0) / (s * 1000)); a.volume = from + (to - from) * k; if (k >= 1) { clearInterval(a._fade); if (done) done(); } }, 50);
+}
+// an audio file counts as loaded once it can play through, or once it has failed (it is fetched again when needed)
+const audioReady = a => a.readyState >= 4 ? Promise.resolve() : new Promise(ok => { a.addEventListener("canplaythrough", ok, { once: true }); a.addEventListener("error", ok, { once: true }); });
+function titleInit() {
+  const box = $("t-embers");
+  if (!reduce) for (let i = 0; i < 18; i++) box.appendChild(Object.assign(document.createElement("i"), { style: `left:${Math.random() * 100}%;--dx:${(Math.random() - 0.5) * 120}px;animation-duration:${7 + Math.random() * 7}s;animation-delay:${-Math.random() * 14}s` }));
+  voiceWarm();   // the voice code and one Turnstile token, while the traveller reads the title
+  const steps = [
+    ["the realm's letters", () => document.fonts ? document.fonts.ready : null],
+    ["sounds of the realm", () => Promise.all(CLIP_FILES.map(f => audioReady(clip(f))))],
+    ["the realm's song", () => audioReady(theme)],
+  ];
+  let done = 0, prepped = false;
+  const bar = () => { $("t-bar").style.width = (100 * done / steps.length) + "%"; };
+  const ready = () => { if (prepped) return; prepped = true; $("enter").disabled = false; $("t-bar").style.width = "100%"; $("title").dataset.phase = titlePhase === "idle" ? "idle" : "ready"; if (titlePhase === "prep") $("enter").focus({ preventScroll: true }); preloadBooks(); };
+  (async () => { for (const [label, run] of steps) { $("loading").textContent = label + "…"; await Promise.resolve(run()).catch(() => {}); done++; bar(); } ready(); })();
+  setTimeout(ready, TITLE_T.cap * 1000);
+}
+// the books' narrations, one at a time at the lowest priority, so a book opened later speaks at once
+async function preloadBooks() {
+  const files = Object.values(CONTENT.lore).flatMap(l => (l.narration || []).map(n => n && n.audio)).filter(Boolean);
+  for (const f of files) await fetch(f, { priority: "low" }).then(r => r.blob()).catch(() => {});
+}
+function titleWake() {
+  if (titlePhase !== "idle") return;
+  titlePhase = "prep"; $("title").dataset.phase = $("enter").disabled ? "prep" : "ready";
+  if (!$("enter").disabled) $("enter").focus({ preventScroll: true });
+  if (!Snd.cfg.muted) { theme.volume = 0; theme.play().then(() => fadeAudio(theme, themeVol(), TITLE_T.fade), () => {}); }
+}
+const titleAct = () => titlePhase === "idle" ? titleWake() : enterRealm();
+async function enterRealm() {
+  if (titlePhase !== "prep" || $("enter").disabled) return;
+  titlePhase = "enter"; $("enter").disabled = true;
+  await askMic();
+  fadeAudio(theme, 0, TITLE_T.fade, () => theme.pause());
+  $("title").classList.add("leave");
+  fadeThen(startGame);
+}
+// every traveller is asked; a refusal means the keepers talk in text, and no answer at all leaves it to the first talk
+async function askMic() {
+  if (!voiceOn() || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+  $("loading").textContent = "Answer your browser to let the keepers hear you…"; $("title").dataset.phase = "prep";
+  const ok = await Promise.race([navigator.mediaDevices.getUserMedia({ audio: true }).then(st => { st.getTracks().forEach(t => t.stop()); return true; }, () => false), wait(TITLE_T.mic * 1000)]);
+  if (ok === false) { voiceMicDenied = true; $("loading").textContent = "The keepers will speak with you in text."; await wait(1600); }
+}
 const focusGame = () => { try { $("game").focus({ preventScroll: true }); } catch (e) {} };
 function startGame() {
-  if (started) return; started = true; $("title").hidden = true; focusGame(); setTimeout(focusGame, 0); Snd.start(); Snd.zone(zoneName); voiceWarm();
+  if (started) return; started = true; titlePhase = "gone"; $("title").hidden = true; focusGame(); setTimeout(focusGame, 0); Snd.start(); Snd.zone(zoneName);
   chat("Welcome to the Realm of Azizcan.", "#ffff00");
   chat("Your quests are tracked on the right. Press M for the world map.", "#ffff00");
   const z0 = inTav(player.x, player.y) ? { name: "The Ember Tavern" } : ZONES.find(z => z.test(player.x >> 4, player.y >> 4));
@@ -3908,7 +3990,7 @@ addEventListener("keydown", e => {
   const tag = e.target && e.target.tagName;
   if (tag === "INPUT" || tag === "TEXTAREA") return;
   if (e.code === "Space" && tag === "BUTTON") return;
-  if (!started) { if ((["KeyE", "Space", "Enter"].includes(e.code) || KEYMAP[e.code]) && !$("enter").disabled) { e.preventDefault(); startGame(); } return; }
+  if (!started) { if (e.metaKey || e.ctrlKey || e.altKey) return; if (titlePhase === "idle") { e.preventDefault(); titleWake(); } else if (["KeyE", "Space", "Enter"].includes(e.code) && tag !== "BUTTON") { e.preventDefault(); enterRealm(); } return; }
   if (!$("finale").hidden) { if (["Escape", "KeyE", "Space", "Enter"].includes(e.code) && tag !== "BUTTON" && tag !== "A") { e.preventDefault(); if (!$("fin-card").hidden) closeFinale(); else finaleCard(); } return; }
   if (talk) {
     if (voice) { if (e.code === "Escape") { e.preventDefault(); voiceEnd(); } return; }
@@ -3944,14 +4026,15 @@ addEventListener("keydown", e => {
 });
 addEventListener("keyup", e => { const k = KEYMAP[e.code]; if (k) keys[k] = false; if (e.code === "ShiftLeft" || e.code === "ShiftRight") keys.sprint = false; });
 addEventListener("blur", () => { for (const k in keys) keys[k] = false; });
-$("enter").addEventListener("click", startGame);
+$("enter").addEventListener("click", enterRealm);
 $("game").addEventListener("pointerdown", e => { if (started && !e.target.closest("input,button,a,.menu,.qframe")) focusGame(); });
-$("title").addEventListener("click", e => { if (e.target === $("title") && !$("enter").disabled) startGame(); });
-view.addEventListener("click", () => { if (!started) return startGame(); if (!dlg) attack(); });
+$("title").addEventListener("click", e => { if (titlePhase === "idle") titleWake(); else if (e.target === $("title")) enterRealm(); });
+view.addEventListener("click", () => { if (!started) return titleAct(); if (!dlg) attack(); });
 const KEYS_HINT = $("title-keys").textContent;
 function applyCoarse(on) {
   coarse = on; $("pad").hidden = !on;
   $("title-keys").textContent = on ? "Use the pad to walk, ⚔ to attack and E to interact" : KEYS_HINT;
+  $("press").textContent = on ? "Tap to begin" : "Press any key";
   if (!on) for (const k of ["up", "down", "left", "right"]) keys[k] = false;
 }
 coarseMq.addEventListener("change", e => applyCoarse(e.matches));
@@ -3961,8 +4044,8 @@ applyCoarse(coarse);
     const k = b.dataset.k, on = e => { e.preventDefault(); keys[k] = true; b.classList.add("on"); }, off = () => { keys[k] = false; b.classList.remove("on"); };
     b.addEventListener("pointerdown", on); b.addEventListener("pointerup", off); b.addEventListener("pointercancel", off); b.addEventListener("pointerleave", off);
   });
-  $("atkbtn").addEventListener("pointerdown", e => { e.preventDefault(); if (!started) startGame(); else if (dlg) advance(); else attack(); });
-  $("abtn").addEventListener("pointerdown", e => { e.preventDefault(); if (!started) startGame(); else if (dlg) advance(); else interact(nearest); });
+  $("atkbtn").addEventListener("pointerdown", e => { e.preventDefault(); if (!started) titleAct(); else if (dlg) advance(); else attack(); });
+  $("abtn").addEventListener("pointerdown", e => { e.preventDefault(); if (!started) titleAct(); else if (dlg) advance(); else interact(nearest); });
 }
 
 renderLog(); renderWho();
@@ -5026,13 +5109,13 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 render();
-$("enter").disabled = false; $("loading").hidden = true;
+titleInit();
 requestAnimationFrame(frame);
 };
 // tests hand the content in directly (window.__CONTENT), since a file:// page cannot fetch
 (window.__CONTENT ? Promise.resolve(window.__CONTENT) : fetch("content/en.json", { cache: "no-cache" }).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }))
   .then(c => { CONTENT = c; requestAnimationFrame(() => setTimeout(__main, 30)); },
-        () => { document.getElementById("loading").textContent = "The realm could not load. Please reload the page."; });
+        () => { document.getElementById("title").dataset.phase = "fail"; document.getElementById("loading").textContent = "The realm could not load. Please reload the page."; });
 </script>
 
 </html>
