@@ -311,7 +311,7 @@ button{font:inherit;color:inherit}
 .wm-top p{margin:0;font-family:var(--title);font-size:12.5px;letter-spacing:.14em;text-transform:uppercase;color:#a6916a}
 .wm-mid{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 210px;gap:18px;min-height:0;padding-top:12px}
 .wm-canvas{position:relative;min-height:0;display:grid;place-items:center}
-.wm-canvas canvas{max-width:100%;max-height:100%;aspect-ratio:4/3;image-rendering:auto;opacity:.82;-webkit-mask-image:radial-gradient(ellipse 50% 50% at 50% 50%,#000 58%,transparent 100%);mask-image:radial-gradient(ellipse 50% 50% at 50% 50%,#000 58%,transparent 100%)}
+.wm-canvas canvas{max-width:100%;max-height:100%;aspect-ratio:5/3;image-rendering:auto;opacity:.82;-webkit-mask-image:radial-gradient(ellipse 57% 52% at 50% 50%,#000 74%,transparent 100%);mask-image:radial-gradient(ellipse 57% 52% at 50% 50%,#000 74%,transparent 100%)}
 .wm-legend{align-self:start;display:grid;gap:9px;font-size:13px;color:#d9ccaa;padding:12px 14px;background:rgba(10,8,6,.45);text-shadow:0 1px 0 #000,0 0 4px #000}
 .wm-legend b{font-family:var(--title);letter-spacing:.12em;text-transform:uppercase;font-size:12px;color:#e8d9b5}
 .wm-legend i{display:inline-block;width:12px;height:12px;margin-right:8px;vertical-align:-1px}
@@ -514,7 +514,7 @@ button{font:inherit;color:inherit}
   <div class="wmap" id="wmap" hidden role="dialog" aria-label="World map">
     <div class="wm-top"><h2>The Realm of Azizcan</h2><p id="wm-zone">The Wayfarer's Rest</p></div>
     <div class="wm-mid">
-      <div class="wm-canvas"><canvas id="wm-cv" width="768" height="576"></canvas></div>
+      <div class="wm-canvas"><canvas id="wm-cv" width="960" height="576"></canvas></div>
       <div class="wm-legend">
         <b>Legend</b>
         <div><i class="lg-p"></i>You</div>
@@ -602,7 +602,9 @@ const fill = (s, v) => String(s).replace(/\{(\w+)\}/g, (m, k) => Object.prototyp
 const __main = () => {
 "use strict";
 const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
-const TS = 16, MW = 64, MH = 48, MPW = MW * TS, MPH = MH * TS;
+// W0 is the realm as first drawn; the columns east of it (the Hidden Falls) are added after, with their own random
+// numbers, so the old realm keeps every tree and flower where it was.
+const TS = 16, W0 = 64, MW = 80, MH = 48, MPW = MW * TS, MPH = MH * TS;
 let VW = 480, VH = 270;
 const T = { GRASS: 0, FOREST: 1, PATH: 2, FLOOR: 3, CARPET: 4, WATER: 5, CAVE: 6, MOSS: 7, ROCK: 8, WALL: 9, LAVA: 10 };
 const BLOCK = new Set([T.FOREST, T.WATER, T.ROCK, T.WALL, T.LAVA]);
@@ -686,8 +688,8 @@ const map = new Uint8Array(MW * MH).fill(T.GRASS);
 const get = (x, y) => (x < 0 || y < 0 || x >= MW || y >= MH) ? T.FOREST : map[y * MW + x];
 const set = (x, y, t) => { if (x >= 0 && y >= 0 && x < MW && y < MH) map[y * MW + x] = t; };
 for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++) {
-  const d = Math.min(x, y, MW - 1 - x, MH - 1 - y);
-  if (d < 2 + vnoise(x * 0.35, y * 0.35) * 2.6) set(x, y, T.FOREST);
+  const d = Math.min(x, y, W0 - 1 - x, MH - 1 - y);
+  if (x >= W0 || d < 2 + vnoise(x * 0.35, y * 0.35) * 2.6) set(x, y, T.FOREST);
 }
 function ellipse(cx, cy, rx, ry, t, jit = 0.25, only) {
   for (let y = Math.floor(cy - ry - 2); y <= cy + ry + 2; y++) for (let x = Math.floor(cx - rx - 2); x <= cx + rx + 2; x++) {
@@ -699,7 +701,7 @@ ellipse(32.5, 41, 5.5, 3.5, T.GRASS, 0.1);
 ellipse(53, 22, 8, 5.5, T.WATER, 0.3);
 ellipse(12, 39, 8.5, 5.5, T.CAVE, 0.3);
 ellipse(51, 39, 9.5, 5.5, T.MOSS, 0.3);
-for (let x = 42; x < MW; x++) {
+for (let x = 42; x < W0; x++) {
   const bottom = x >= 49 && x <= 55 ? 9 : 8 + Math.floor(vnoise(x * 0.4, 3) * 2.5);
   for (let y = 0; y <= bottom; y++) set(x, y, T.ROCK);
 }
@@ -803,7 +805,7 @@ shadeGround();
   const ok = new Set([T.PATH, T.FLOOR, T.WALL]);
   const V1 = C("#3d5a20"), V2 = C("#6f8f2c");
   for (let n = 0; n < 160; n++) {
-    let x = Math.floor(rng() * MPW), y = Math.floor(rng() * MPH);
+    let x = Math.floor(rng() * W0 * TS), y = Math.floor(rng() * MPH);
     if (!ok.has(get(x >> 4, y >> 4))) continue;
     let a = rng() * Math.PI * 2; const len = 14 + rng() * 40;
     for (let s = 0; s < len; s++) {
@@ -833,7 +835,7 @@ function paintTree(x, y, s) {
   blob(O, x + 2, y - 24 - r * 0.6, r * 0.6, r * 0.5, PAL.tree, x + 3, 0.3, 0.1);
   addCol(x - 4, y - 4, 8, 5);
 }
-for (let ty = 3; ty < MH - 3; ty++) for (let tx = 3; tx < MW - 3; tx++) {
+for (let ty = 3; ty < MH - 3; ty++) for (let tx = 3; tx < W0 - 3; tx++) {
   if (get(tx, ty) !== T.GRASS || rng() > 0.075) continue;
   let clear = true;
   for (let j = -2; j <= 2 && clear; j++) for (let i = -2; i <= 2; i++) { const t = get(tx + i, ty + j); if (t !== T.GRASS && t !== T.FOREST) { clear = false; break; } }
@@ -842,12 +844,12 @@ for (let ty = 3; ty < MH - 3; ty++) for (let tx = 3; tx < MW - 3; tx++) {
   trees.push({ tx, ty });
 }
 // forest canopy
-for (let ty = 0; ty < MH; ty++) for (let tx = 0; tx < MW; tx++) if (get(tx, ty) === T.FOREST && rng() < 0.72)
+for (let ty = 0; ty < MH; ty++) for (let tx = 0; tx < W0; tx++) if (get(tx, ty) === T.FOREST && rng() < 0.72)
   blob(O, tx * TS + 8 + (rng() - 0.5) * 8, ty * TS + 6 + (rng() - 0.5) * 8, 11 + rng() * 6, 9 + rng() * 5, PAL.fcanopy, tx * 7 + ty);
 trees.sort((a, b) => a.ty - b.ty).forEach(t => paintTree(t.tx * TS + 8, t.ty * TS + 12, rng()));
 // bushes and flowers
 for (let n = 0; n < 140; n++) {
-  const tx = 3 + Math.floor(rng() * (MW - 6)), ty = 3 + Math.floor(rng() * (MH - 6));
+  const tx = 3 + Math.floor(rng() * (W0 - 6)), ty = 3 + Math.floor(rng() * (MH - 6));
   if (get(tx, ty) !== T.GRASS) continue;
   const x = tx * TS + rng() * 16, y = ty * TS + rng() * 16;
   if (rng() < 0.55) { G.shadow(x + 2, y + 3, 8, 3, 0.6); blob(G, x, y, 6 + rng() * 3, 4 + rng() * 2, PAL.tree, n, 0.35, -0.1); }
@@ -1505,9 +1507,9 @@ tBarrel(1.7, 17.4, 4); tCrate(2.9, 17.5); tCrate(27.9, 17.5); tBarrel(26.8, 17.5
 for (let i = 0; i < 18; i++) { const sx = FX0 + 10 + trng() * (FX1 - FX0 - 20), sy = FY0 + 12 + trng() * (FY1 - FY0 - 20), r = 2 + trng() * 5; for (let dy = -r; dy <= r; dy++) for (let dx = -r * 1.5; dx <= r * 1.5; dx++) if ((dx / 1.5) ** 2 + dy * dy <= r * r * (0.7 + vnoise(sx + dx, sy + dy) * 0.5)) TL.mul(sx + dx, sy + dy, 0.8); }
 for (let i = 0; i < 90; i++) { const sx = FX0 + trng() * (FX1 - FX0) | 0, sy = FY0 + 6 + trng() * (FY1 - FY0 - 6) | 0; if (sx > 11 * TS - 4 && sx < 18 * TS + 4 && sy > 8.6 * TS && sy < 12.6 * TS) continue; const c = C(["#a08a4a", "#c8b060", "#7a6634"][i % 3]), d = trng() < 0.5 ? 1 : -1; for (let k = 0; k < 2 + (i % 3); k++) TL.px(sx + k, sy + (trng() < 0.4 ? k * d : 0), c); }
 tShadow(TAVX + 4.2 * TS, TAVY + 4.8 * TS, 9, 3, 0.6);
-// Delipinar: a wild spring welling up in a ring of stones, beside Gehan
-const SPRING = { x: TAVX + 13.7 * TS, y: TAVY + 5.7 * TS };
-const GEHAN = { x: TAVX + 16.3 * TS, y: TAVY + 5.4 * TS };
+// Delipinar: a wild spring welling up in a ring of stones, beside Gehan, in the valley behind the falls
+const SPRING = { x: 71.6 * TS, y: 6.6 * TS };
+const GEHAN = { x: 70.2 * TS, y: 5.3 * TS };
 const SPRING_CV = (() => {
   const L = new Layer(32, 20), cx = 16, cy = 11;
   for (let y = 0; y < 20; y++) for (let x = 0; x < 32; x++) {
@@ -1518,13 +1520,8 @@ const SPRING_CV = (() => {
   for (let y = 0; y < 8; y++) for (let x = 11; x < 21; x++) if ((x - 16) ** 2 / 25 + (y - 5) ** 2 / 9 <= 1) L.px(x, y, y < 3 && hash2(x, y) > 0.4 ? C("#4a7a3a") : pick(TPAL.hstone, 0.6 - (y - 5) * 0.08, x, y));
   outlineL(L); return L.canvas();
 })();
-tShadow(SPRING.x + 2, SPRING.y + 1, 15, 4, 0.55);
-tShadow(GEHAN.x + 3, GEHAN.y, 13, 4, 0.5);
-tAddCol(SPRING.x - TAVX - 14, SPRING.y - TAVY - 8, 28, 10);
-tAddCol(GEHAN.x - TAVX - 9, GEHAN.y - TAVY - 7, 22, 9);
-TAV_NPCS.push({ kind: "spring", x: SPRING.x, y: SPRING.y + 4 });
-glows.push({ x: SPRING.x, y: SPRING.y - 2, r: 26, c: "rgba(60,220,200,.2)", f: 0.4 });
-glows.push({ x: GEHAN.x + 10, y: GEHAN.y - 39, r: 16, c: "rgba(110,255,220,.22)", f: 0.3 });
+// where Gēhān sat, a table of patrons
+tRoundTable(15, 6.4, [["mug", -5, -2], ["mug", 3, -1], ["candle", 0, -5]], [[0, -19, "f", 13], [19, -4, "stool"]]);
 const tavernCv = TL.canvas();
 
 // ----- the people: patrons, the keeper, the bard, a dancer, a serving girl, a dog and a cat -----
@@ -2095,8 +2092,77 @@ Object.assign(shards[5], { x: 852, y: 352, water: true });
 
 // fireflies
 const flies = Array.from({ length: 70 }, () => {
-  for (;;) { const tx = 2 + Math.floor(rng() * (MW - 4)), ty = 2 + Math.floor(rng() * (MH - 4)); const t = get(tx, ty); if (t === T.GRASS || t === T.FOREST || t === T.CAVE) return { x: tx * TS + rng() * 16, y: ty * TS + rng() * 16, p: rng() * 10, blue: t === T.CAVE }; }
+  for (;;) { const tx = 2 + Math.floor(rng() * (W0 - 4)), ty = 2 + Math.floor(rng() * (MH - 4)); const t = get(tx, ty); if (t === T.GRASS || t === T.FOREST || t === T.CAVE) return { x: tx * TS + rng() * 16, y: ty * TS + rng() * 16, p: rng() * 10, blue: t === T.CAVE }; }
 });
+
+// ---------- the Hidden Falls ----------
+// A river leaves the mere's east shore, runs east, then north to the foot of a cliff. Gēhān's spring, on the heights
+// above, spills over the cliff's brow as a waterfall. The boat reaches the pool at the foot; from a ledge there, steps
+// cut behind the falling water climb to the valley on the heights, closed by rock and forest. No road leads there.
+const FALLS = { x0: 66 * TS, x1: 70 * TS + 9, y0: 12 * TS, y1: 17 * TS - 2 };
+const SPRING_NPC = { kind: "spring", x: SPRING.x, y: SPRING.y + 4 };
+(() => {
+  const erng = mulberry(20260930), cut = new Set();
+  const put = (x, y, t) => { if (get(x, y) === t) return; set(x, y, t); if (x < W0) cut.add(y * MW + x); };
+  // the cliff, west to east, with the valley on the heights above it
+  const brow = [], foot = [];   // for each column of the cliff, the rows of its brow and its foot
+  for (let x = W0; x < MW; x++) { const top = 11 + Math.floor(vnoise(x * 0.5, 2) * 1.8), bot = 15 + Math.floor(vnoise(x * 0.5, 9) * 1.6); brow[x] = top; foot[x] = bot; for (let y = top; y <= bot; y++) set(x, y, T.ROCK); }
+  ellipse(69.8, 6.2, 5.6, 4.2, T.GRASS, 0.3);
+  for (let y = 0; y < 12; y++) for (let x = W0 + 1; x < MW; x++) if (get(x, y) === T.FOREST && [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([i, j]) => get(x + i, y + j) === T.GRASS) && vnoise(x * 0.9, y * 0.9) > 0.55) set(x, y, T.ROCK);
+  // the river: out of the mere, east, then north to a pool at the foot of the falls
+  for (let y = 21; y <= 24; y++) for (let x = 58; x <= 69; x++) put(x, y, T.WATER);
+  for (let y = 17; y <= 24; y++) for (let x = 66; x <= 69; x++) set(x, y, T.WATER);
+  ellipse(67.6, 18.6, 3, 1.8, T.WATER, 0.2);
+  // on the heights, the spring-fed pool that runs to the brow and over it
+  ellipse(67.8, 8.6, 2.6, 1.9, T.WATER, 0.2);
+  for (let x = 66; x <= 69; x++) for (let y = 9; y < brow[x]; y++) set(x, y, T.WATER);
+  // a ledge beside the foot pool, and steps cut into the rock behind the falls, up to the heights
+  for (let y = 17; y <= 19; y++) for (let x = 70; x <= 71; x++) set(x, y, T.GRASS);
+  for (let y = brow[70] - 1; y < 17; y++) set(70, y, T.PATH);
+  // a strip of bank along the river below the cliff
+  for (let y = 17; y <= 26; y++) for (let x = W0; x < MW; x++) if (get(x, y) === T.FOREST && vnoise(x * 0.6, y * 0.6) > 0.5 && [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([i, j]) => get(x + i, y + j) === T.WATER)) set(x, y, T.GRASS);
+  shadeGround(58 * TS, 0, MPW, MPH, (tx, ty) => tx >= W0 || cut.has(ty * MW + tx));
+  // the cliff's face, seen from the valley below: a mossy brow, then layered stone darkening to its foot
+  for (let x = W0 * TS; x < MPW; x++) {
+    const tx = x >> 4, y0 = brow[tx] * TS + 4 + Math.floor(vnoise(x / 6, 1) * 4), y1 = (foot[tx] + 1) * TS;
+    for (let y = y0; y < y1; y++) {
+      if (get(tx, y >> 4) !== T.ROCK) continue;
+      const k = (y - y0) / (y1 - y0), band = Math.floor((y + vnoise(x / 9, 3) * 5) / 5), crack = hash2(x >> 2, band) > 0.84 && (x & 3) === 0;
+      let v = 0.72 - k * 0.55 + (band & 1 ? 0.06 : -0.03) + (vnoise(x / 3, y / 5) - 0.5) * 0.14 - (crack ? 0.3 : 0);
+      if (y - y0 < 2) v = 0.9;
+      let c = pick(PAL.stone, v, x, y);
+      if (y - y0 < 3 + vnoise(x / 3, 5) * 7 && vnoise(x / 4, 17) > 0.45) c = pick(PAL.moss, 0.55 - (y - y0) * 0.04, x, y);
+      const i = (y * MPW + x) * 4; G.d[i] = c[0]; G.d[i + 1] = c[1]; G.d[i + 2] = c[2];
+    }
+    for (let k = 0; k < 4; k++) { const i = ((y1 + k) * MPW + x) * 4; if (get(tx, (y1 + k) >> 4) === T.ROCK) continue; G.d[i] *= 0.55 + k * 0.1; G.d[i + 1] *= 0.55 + k * 0.1; G.d[i + 2] *= 0.6 + k * 0.1; }   // its shadow at the foot
+  }
+  // the steps: worn treads and dark risers, walled by the rock on either side
+  for (let y = brow[70] * TS; y < 17 * TS; y++) for (let x = 70 * TS; x < 71 * TS; x++) {
+    const ly = (y - brow[70] * TS) % 6, side = x - 70 * TS < 2 || x - 70 * TS > 13;
+    const v = side ? 0.12 : ly === 0 ? 0.08 : ly === 1 ? 0.78 : 0.5 - ly * 0.05 + (hash2(x >> 2, y / 6 | 0) - 0.5) * 0.12;
+    const c = pick(PAL.stone, v, x, y), i = (y * MPW + x) * 4; G.d[i] = c[0]; G.d[i + 1] = c[1]; G.d[i + 2] = c[2];
+  }
+  // no leaves over the river where it was cut through the old forest
+  cut.forEach(i => { const tx = i % MW, ty = i / MW | 0; for (let y = 0; y < TS; y++) for (let x = 0; x < TS; x++) O.d[((ty * TS + y) * MPW + tx * TS + x) * 4 + 3] = 0; });
+  // the forest's canopy over the new ground, trees and flowers on the heights
+  for (let ty = 0; ty < MH; ty++) for (let tx = W0; tx < MW; tx++) if (get(tx, ty) === T.FOREST && erng() < 0.72)
+    blob(O, tx * TS + 8 + (erng() - 0.5) * 8, ty * TS + 6 + (erng() - 0.5) * 8, 11 + erng() * 6, 9 + erng() * 5, PAL.fcanopy, tx * 7 + ty);
+  [[65.6, 4.4], [74.2, 3.6], [74.6, 8.8]].forEach(([tx, ty]) => paintTree(tx * TS + 8, ty * TS + 12, erng()));
+  for (let n = 0; n < 30; n++) {
+    const tx = 64 + Math.floor(erng() * 12), ty = 3 + Math.floor(erng() * 8);
+    if (get(tx, ty) !== T.GRASS) continue;
+    const x = tx * TS + erng() * 16, y = ty * TS + erng() * 16;
+    for (let k = 0; k < 6; k++) { const fx = x + (erng() - 0.5) * 10, fy = y + (erng() - 0.5) * 6; G.px(fx, fy, C(k % 2 ? "#6fe0d0" : "#e8f4ff")); G.px(fx + 1, fy + 1, C("#2f4a18")); }
+  }
+  // Gēhān and his spring
+  G.shadow(SPRING.x + 2, SPRING.y + 1, 15, 4, 0.55); G.shadow(GEHAN.x + 3, GEHAN.y, 13, 4, 0.5);
+  addCol(SPRING.x - 14, SPRING.y - 8, 28, 10); addCol(GEHAN.x - 9, GEHAN.y - 7, 22, 9);
+  glows.push({ x: SPRING.x, y: SPRING.y - 2, r: 26, c: "rgba(60,220,200,.2)", f: 0.4 });
+  glows.push({ x: GEHAN.x + 10, y: GEHAN.y - 39, r: 16, c: "rgba(110,255,220,.22)", f: 0.3 });
+  glows.push({ x: (FALLS.x0 + FALLS.x1) / 2, y: FALLS.y1 + 4, r: 44, c: "rgba(150,200,255,.16)", f: 0.6 });
+  // a few fireflies of the valley's own
+  for (let n = 0; n < 10; n++) flies.push({ x: 64 * TS + erng() * 11 * TS, y: 3 * TS + erng() * 8 * TS, p: erng() * 10, blue: true });
+})();
 
 // no leaves hang over where the traveller can stand around the tavern gate, so they never seem to walk behind them
 for (let y = 676; y < MPH; y++) for (let x = 330; x < 570; x++) if (!blockedPx(x, y))
@@ -2194,7 +2260,7 @@ const ROMAN = ["I", "II", "III", "IV", "V", "VI"];
 const SWORDS = CONTENT.blades.map(b => [b.org, b.role, b.story]);
 const PLACES = CONTENT.places;
 function content(id, idx) {
-  const L = CONTENT.lore, vars = () => ({ email: EMAIL, done: QUESTS.filter(q => q.id !== "gate" && qDone(q)).length, controls: CONTENT.controls[coarse ? "touch" : "keyboard"] });
+  const L = CONTENT.lore, vars = () => ({ email: EMAIL, total: QUESTS.length - 1, done: QUESTS.filter(q => q.id !== "gate" && qDone(q)).length, controls: CONTENT.controls[coarse ? "touch" : "keyboard"] });
   const page = p => { const v = vars(); return { ...p, sub: fill(p.sub, v), pages: p.pages.map(x => fill(x, v)) }; };
   switch (id) {
     case "keep": { const p = page(L.keep); if (idx === "all") p.pages = p.pages.concat(STAGES.map((s, i) => fill(CONTENT.statuePage, { roman: ROMAN[i], name: s.name, t: s.t, body: s.body }))); p.key = "keep"; return p; }
@@ -2212,6 +2278,7 @@ state.gateOpen = false; // decided once the quest list exists (see renderLog)
 shards.forEach(s => { s.got = state.shards.includes(s.i); });
 const explored = new Uint8Array(MW * MH);
 if (state.explored && state.explored.length === MW * MH) for (let i = 0; i < explored.length; i++) explored[i] = state.explored.charCodeAt(i) === 49 ? 1 : 0;
+else if (state.explored && state.explored.length === W0 * MH) for (let y = 0; y < MH; y++) for (let x = 0; x < W0; x++) explored[y * MW + x] = state.explored.charCodeAt(y * W0 + x) === 49 ? 1 : 0;   // saves from before the Hidden Falls
 let miniDirty = true;
 function reveal(tx, ty, R = 2) {
   let changed = false;
@@ -2231,6 +2298,7 @@ const hadProgress = Array.isArray(state.pos) || state.read.length || state.shard
 if (!state.scene) state.scene = hadProgress ? "realm" : "tavern";
 if (!Array.isArray(state.quests)) state.quests = (state.lit > 0 || state.read.includes("keep")) ? ["keep"] : [];
 // saves from before Gehan arrived keep the Field if they had already started it
+if (!state.fallsMig) { if (state.quests.includes("keep") && !state.quests.includes("find")) state.quests.push("find"); state.fallsMig = true; }
 if (!state.gehanMig) { if ((state.read.includes("field") || state.swords.length) && !state.quests.includes("field")) state.quests.push("field"); state.gehanMig = true; }
 if (state.scene === "tavern") { player.x = TAV_SPAWN[0]; player.y = TAV_SPAWN[1]; }
 // what the traveller has told Od-Man of themselves, shown top left; a malformed record is dropped, and a name he noted in his memory carries over
@@ -2526,7 +2594,7 @@ const Snd = (() => {
       setL(amb.wind, inTavern ? 0 : inHall ? 0.04 : inCave ? 0.1 : 0.2, 0);
       setL(amb.crowd, inTavern ? 0.2 : 0, 0); setL(amb.babble, inTavern ? 0.025 : 0, 0);
       setL(amb.fire, fl * 0.22, panOf(fx));
-      const spr = inTavern ? near(dist(SPRING.x, SPRING.y), 10, 160) : 0;
+      const spr = !inTavern ? Math.max(near(dist(SPRING.x, SPRING.y), 10, 160), 1.5 * near(dist((FALLS.x0 + FALLS.x1) / 2, FALLS.y1), 20, 240)) : 0;
       setL(amb.water, Math.max(lake * 0.3, spr * 0.16), spr > lake ? panOf(SPRING.x) : panOf(848));
       setL(amb.lava, lava * 0.55, panOf(player.x < 840 ? 760 : 920));
       setL(amb.whistle, field * 0.05, panOf(816));
@@ -2543,7 +2611,7 @@ const Snd = (() => {
     if (fl > 0.02 && R() < dt * fl * 30) crackle(panOf(fx), fl);
     if (grove > 0 && R() < dt * grove * 0.55) chime(panOf(200));
     if (lake > 0 && R() < dt * lake * 0.9) plop(panOf(848 + (R() - 0.5) * 200), lake);
-    if (inTavern && R() < dt * 1.4) { const v = near(dist(SPRING.x, SPRING.y), 10, 160); if (v > 0) plop(panOf(SPRING.x), v * 0.7); }
+    if (!inTavern && R() < dt * 1.4) { const v = near(dist(SPRING.x, SPRING.y), 10, 160); if (v > 0) plop(panOf(SPRING.x), v * 0.7); }
     if (lava > 0 && R() < dt * lava * 2.2) bubble(panOf(player.x < 840 ? 760 : 920), lava);
     if (field > 0 && state.swords.length < 8 && R() < dt * field * 0.07 * (1 - state.swords.length / 8)) metal(420 + R() * 300, { gain: 0.012 * field, dest: bus.amb, pan: panOf(816 + (R() - 0.5) * 200), wet: 0.95, d: 3.5 });
     breathT -= dt;
@@ -2725,9 +2793,11 @@ function chat(msg, color = "#ffff00") {
 // ---------- quests & experience ----------
 const has = id => state.read.includes(id);
 function accepted(id) { return (state.quests || []).includes(id); }
+const metGehan = () => (state.met || []).includes("gehan");
 function questVisible(q) {
   if (q.id === "keep") return accepted("keep") || state.lit > 0;
   if (q.id === "field") return accepted("field") || state.swords.length > 0;
+  if (q.id === "find") return accepted("find") || metGehan();
   if (q.id === "sign") return state.scene !== "tavern" || has("sign");
   return has("sign") || q.obj().some(([, v]) => v > 0);
 }
@@ -2736,18 +2806,19 @@ const QUESTS = [
   { id: "sign", title: QT.sign.title, obj: () => [[qo("sign", 0), +has("sign"), 1]] },
   { id: "throne", title: QT.throne.title, obj: () => [[qo("throne", 0), +has("throne"), 1]] },
   { id: "keep", title: QT.keep.title, obj: () => [[qo("keep", 0), state.lit, 6]] },
+  { id: "find", title: QT.find.title, obj: () => [[qo("find", 0), +metGehan(), 1]] },
   { id: "dragon", title: QT.dragon.title, obj: () => [[qo("dragon", 0), +has("dragon"), 1]] },
   { id: "oracle", title: QT.oracle.title, obj: () => [[qo("oracle", 0), +has("oracle"), 1]] },
   { id: "field", title: QT.field.title, obj: () => [[qo("field", 0), +has("field"), 1], [qo("field", 1), state.swords.length, 8]] },
   { id: "shards", title: QT.shards.title, obj: () => [[qo("shards", 0), state.shards.length, 8]] },
-  { id: "gate", title: QT.gate.title, obj: () => [[qo("gate", 0), QUESTS.filter(q => q.id !== "gate" && qDone(q)).length, 7], [qo("gate", 1), +!!state.bossDown, 1], [qo("gate", 2), +has("gateFinal"), 1]] },
+  { id: "gate", title: QT.gate.title, obj: () => [[qo("gate", 0), QUESTS.filter(q => q.id !== "gate" && qDone(q)).length, QUESTS.length - 1], [qo("gate", 1), +!!state.bossDown, 1], [qo("gate", 2), +has("gateFinal"), 1]] },
 ];
 const qDone = q => q.obj().every(([, v, m]) => v >= m);
 const XP_PER_LEVEL = 230, MAX_LEVEL = 10;
 function computeXP() {
   return (has("sign") ? 100 : 0) + (has("throne") ? 150 : 0) + state.lit * 50 + (has("dragon") ? 150 : 0) + (has("oracle") ? 150 : 0)
     + (has("field") ? 50 : 0) + state.swords.length * 40 + state.shards.length * 75 + (state.gateOpen ? 100 : 0) + (has("gateFinal") ? 100 : 0)
-    + state.zones.length * 40 + (state.bossDown ? 150 : 0);
+    + state.zones.length * 40 + (state.bossDown ? 150 : 0) + (metGehan() ? 100 : 0);
 }
 const XP_FOR = { sign: 100, throne: 150, dragon: 150, oracle: 150, field: 50, sword: 40, statue: 50 };
 let lastXP = null, lastLevel = 1, lastDoneSet = null, wmDirty = true;
@@ -2815,7 +2886,7 @@ const QUEST_HINTS = CONTENT.questHints;
 function openQuest(q) {
   startGame();
   const h = QUEST_HINTS[q.id], done = qDone(q);
-  if (done && q.id !== "shards") {
+  if (done && q.id !== "shards" && content(q.id, "all")) {
     openDialog(content(q.id, "all"), null, { kind: "Quest complete" });
     return;
   }
@@ -3304,11 +3375,14 @@ function acceptQuest(id) {
   const q = QUESTS.find(q => q.id === id);
   chat(`Quest accepted: ${q ? q.title : id}`, "#ffd100"); Snd.play("quest"); renderLog();
   const el = document.querySelector(`#trk [data-q="${id}"]`); if (el) el.classList.add("trk-bounce");
+  // the Keep's trial comes with a second errand: find Gēhān, who left the hearth for the falls
+  if (id === "keep" && !metGehan()) setTimeout(() => acceptQuest("find"), 1400);
 }
 function meet(id) {
   if ((state.met || []).includes(id)) return;
   state.met = (state.met || []).concat(id); save();
   chat(`New Bestiary entry: ${NPC_REFS[id].name}. Press B to read it.`, "#b48cff");
+  renderLog();   // meeting Gēhān is itself a quest
 }
 
 // ---------- conversation band ----------
@@ -3574,7 +3648,7 @@ function odFirstLine() {
   if (name && met) return "You came back to the fire. The Keep's trial still waits. Will you take it this time?";
   if (met) return "You again. The Keep's trial still waits. Will you take it this time?";
   // a first meeting with someone Gēhān has already named: he asks only what is still unknown
-  if (name) return `Ah, a new flame out of the dark. I am Od-Man, keeper of this hearth. The chatterbox by the spring has spoken of you. ${!w.craft ? "What is your craft, traveller?" : !w.guild ? "Whose banner do you work under?" : "Will you take the Keep's trial?"}`;
+  if (name) return `Ah, a new flame out of the dark. I am Od-Man, keeper of this hearth. The chatterbox beyond the falls has spoken of you. ${!w.craft ? "What is your craft, traveller?" : !w.guild ? "Whose banner do you work under?" : "Will you take the Keep's trial?"}`;
   return "Ah, a new flame out of the dark. I am Od-Man, keeper of this hearth. What name do you carry, traveller?";
 }
 const odTraveller = () => { const w = state.who; return `Name: ${w.name || "unknown"}. Craft: ${w.craft || "unknown"}. Guild: ${w.guild || "unknown"}. Roads: ${state.roads.length ? state.roads.join("; ") + "." : "none told yet."}`; };
@@ -3605,7 +3679,7 @@ function geFirstLine() {
   if (q === "done") return "Eight blades burn in the field; the spring felt every one. Which road will you walk next?";
   if (q === "taken") return n > 0 ? `${["One", "Two", "Three", "Four", "Five", "Six", "Seven"][n - 1]} of eight blades burn. Which sleeping road shall I tell you about?` : "The field still waits in the south-east. Shall I tell you what sleeps there, or mark the way?";
   if (geMem().visits) return "You came back to the water. The field's trial still waits. Will you take it this time?";
-  return "Come, sit by the water. The spring has been waiting for you. What road brought you here?";
+  return "You found me. Few come through the falls, traveller. Sit by the water: what road brought you here?";
 }
 function geVoiceVars() {
   return { field_state: fieldState(), blades: bladesText(), hp_low: hpLow(), memory: npcMemoryText("gemem"), traveller: odTraveller(), other_keeper: otherKeeper("gehan"), word_for_you: wordFor("gehan") };
@@ -4052,13 +4126,14 @@ renderLog(); renderWho();
 
 // ---------- zones ----------
 const ZONES = [
+  { name: "The Hidden Falls", test: (x, y) => x >= 65 },
   { name: "The Wayfarer's Rest", test: (x, y) => (x - 32) ** 2 / 40 + (y - 41) ** 2 / 14 < 1 },
   { name: "Throne of Prompts", test: (x, y) => x >= 26 && x <= 38 && y >= 4 && y <= 17 },
   { name: "Keep of the Factory", test: (x, y) => x >= 6 && x <= 18 && y >= 18 && y <= 28 },
   { name: "The Judge's Mere", test: (x, y) => (x - 49) ** 2 / 90 + (y - 23) ** 2 / 40 < 1 },
   { name: "The Luminous Grove", test: (x, y) => get(x, y) === T.CAVE },
   { name: "Field of Old Quests", test: (x, y) => get(x, y) === T.MOSS },
-  { name: "Gate of Production", test: (x, y) => x >= 44 && y <= 14 },
+  { name: "Gate of Production", test: (x, y) => x >= 44 && x < W0 && y <= 14 },
 ];
 let zoneName = "The Wayfarer's Rest";
 
@@ -4202,7 +4277,7 @@ function attack() {
   const k = COMBO[combo];
   atkStep = combo; atkDur = atkT = k.dur; atkLinger = 0; atkCd = k.cd; comboT = k.cd + 0.5; atkPending = true;
   if (combo === 3) comboT = 0;
-  playClip(combo === 3 ? "audio/swing-3.mp3" : "audio/swing.mp3", () => Snd.play("slash", { step: combo }), 0.55);
+  playClip(combo === 3 ? "audio/swing-3.mp3" : "audio/swing.mp3", () => Snd.play("slash", { step: combo }), 0.35);
   armedT = ARMED_FOR;
 }
 function resolveHit() {
@@ -4705,6 +4780,28 @@ function drawBladeFire(i, cx, cy, t) {
   }
   [8, 12, 16, 20, 24].forEach((r, k) => { const [fx, fy] = at(r); drawFlame(fx + (k & 1 ? 1 : -1), fy, t, 0.42 + (k === 0 ? 0.2 : 0), i * 7.7 + k * 2.3); });
 }
+// the falls: water pours down the cliff's face and over the steps' edge, foam boils in the pool at its foot, and
+// spray rises around the traveller who climbs behind it or rows up to it
+function drawFalls(cx, cy, t) {
+  const { x0, x1, y0, y1 } = FALLS;
+  if (x1 < cx || x0 > cx + VW || y1 + 12 < cy || y0 - 12 > cy + VH) return;
+  for (let x = x0 - 1; x <= x1; x++) {
+    const edge = x < x0 + 2 || x > x1 - 3, ph = hash2(x, 7) * 40, sp = 55 + hash2(x, 3) * 45, lip = y0 - 3 + Math.floor(hash2(x, 11) * 3);
+    ctx.fillStyle = "rgba(240,248,255,.95)"; ctx.fillRect(x - cx, lip - cy, 1, 2);
+    for (let y = lip + 2; y < y1 + 2; y++) {
+      const k = ((y - t * sp + ph) % 16 + 16) % 16;
+      if (edge && k > 6) continue;
+      ctx.fillStyle = k < 1.5 ? "rgba(240,248,255,.92)" : k < 6 ? "rgba(175,205,255,.62)" : "rgba(120,150,230,.4)";
+      ctx.fillRect(x - cx, y - cy, 1, 1);
+    }
+  }
+  for (let x = x0 - 4; x < x1 + 4; x++) for (let r = 0; r < 3; r++) {
+    const f = Math.sin(x * 1.7 + t * 9 + r * 2) + Math.sin(x * 0.6 - t * 5 + r);
+    if (f > 0.2) { ctx.fillStyle = f > 1.1 ? "#eef6ff" : "rgba(170,196,255,.8)"; ctx.fillRect(x - cx, y1 + r * 2 - cy, 1, 1); }
+  }
+  if (player.x > x0 - 8 && player.x < x1 + 8 && player.y > y0 && player.y < y1 + 40 && Math.random() < 0.5)
+    parts.push({ x: player.x + (Math.random() - 0.5) * 20, y: player.y - 10, vx: (Math.random() - 0.5) * 30, vy: -20 - Math.random() * 20, life: 0.5, c: "#dfeaff", g: 60 });
+}
 function render() {
   const tav = inTav(player.x, player.y);
   let cx = tav ? Math.round(VW >= TAVW ? TAVX + (TAVW - VW) / 2 : Math.min(TAVX + TAVW - VW, Math.max(TAVX, player.x - VW / 2))) : Math.round(Math.min(MPW - VW, Math.max(0, player.x - VW / 2)));
@@ -4763,6 +4860,7 @@ function render() {
   if (!state.bossDown && inView(boss.x, boss.y, 50, cx, cy)) list.push({ base: boss.y, bossE: true });
   if (inView(ODMAN.x, ODMAN.y, 60, cx, cy)) list.push({ base: ODMAN.y, od: true });
   if (inView(GEHAN.x, GEHAN.y, 60, cx, cy)) list.push({ base: GEHAN.y, ge: true });
+  if (!tav && inView(SPRING.x, SPRING.y, 40, cx, cy)) list.push({ base: SPRING_NPC.y, tn: SPRING_NPC });
   shards.forEach(sh => { if (!sh.got && inView(sh.x, sh.y, 16, cx, cy)) list.push({ base: sh.y, shard: sh }); });
   if (tav) for (const n of TAV_NPCS) list.push({ base: n.y, tn: n });
   if (inView(boat.x, boat.y, 44, cx, cy)) list.push({ base: boat.y + 18, boat: true });
@@ -4822,6 +4920,7 @@ function render() {
   });
 
   ctx.drawImage(overCv, cx, cy, VW, VH, 0, 0, VW, VH);
+  if (!tav) drawFalls(cx, cy, t);
   // smoke from the tavern's hidden chimney, rising through the leaves
   const smX = TAV_GATE.x - 40, smY = TAV_GATE.y - 76;
   if (!tav && inView(smX, smY, 60, cx, cy)) for (let i = 0; i < 8; i++) {
@@ -4954,6 +5053,7 @@ const LANDMARKS = [
   { tx: 12, ty: 38, name: "The Luminous Grove", done: () => has("oracle") },
   { tx: 50, ty: 39, name: "Field of Old Quests", done: () => has("field") && state.swords.length >= 8 },
   { tx: 52, ty: 9, name: "Gate of Production", done: () => has("gateFinal") },
+  { tx: 66, ty: 7, name: "The Hidden Falls", done: () => metGehan() },
 ];
 const OPEN_TILES = []; for (let i = 0; i < map.length; i++) if (map[i] !== T.FOREST && map[i] !== T.ROCK && map[i] !== T.WALL) OPEN_TILES.push(i);
 const miniCv = $("mini-cv"), mnctx = miniCv.getContext("2d");
@@ -5006,6 +5106,7 @@ function drawMini(t) {
 // ---------- world map (Diablo IV style parchment) ----------
 const WM = 12, WMW = MW * WM, WMH = MH * WM;
 const wmCv = $("wm-cv"), wmx = wmCv.getContext("2d"), wmBase = document.createElement("canvas");
+wmCv.width = WMW; wmCv.height = WMH;   // the realm with the Hidden Falls: 80 by 48 tiles
 wmBase.width = WMW; wmBase.height = WMH;
 const SEPIA = {
   [T.GRASS]: [124, 108, 76], [T.FOREST]: [78, 66, 46], [T.PATH]: [178, 160, 120], [T.FLOOR]: [164, 148, 116], [T.CARPET]: [150, 62, 44],
