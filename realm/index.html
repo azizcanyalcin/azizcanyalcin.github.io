@@ -1507,7 +1507,7 @@ tBarrel(1.7, 17.4, 4); tCrate(2.9, 17.5); tCrate(27.9, 17.5); tBarrel(26.8, 17.5
 for (let i = 0; i < 18; i++) { const sx = FX0 + 10 + trng() * (FX1 - FX0 - 20), sy = FY0 + 12 + trng() * (FY1 - FY0 - 20), r = 2 + trng() * 5; for (let dy = -r; dy <= r; dy++) for (let dx = -r * 1.5; dx <= r * 1.5; dx++) if ((dx / 1.5) ** 2 + dy * dy <= r * r * (0.7 + vnoise(sx + dx, sy + dy) * 0.5)) TL.mul(sx + dx, sy + dy, 0.8); }
 for (let i = 0; i < 90; i++) { const sx = FX0 + trng() * (FX1 - FX0) | 0, sy = FY0 + 6 + trng() * (FY1 - FY0 - 6) | 0; if (sx > 11 * TS - 4 && sx < 18 * TS + 4 && sy > 8.6 * TS && sy < 12.6 * TS) continue; const c = C(["#a08a4a", "#c8b060", "#7a6634"][i % 3]), d = trng() < 0.5 ? 1 : -1; for (let k = 0; k < 2 + (i % 3); k++) TL.px(sx + k, sy + (trng() < 0.4 ? k * d : 0), c); }
 tShadow(TAVX + 4.2 * TS, TAVY + 4.8 * TS, 9, 3, 0.6);
-// Delipinar: a wild spring welling up in a ring of stones, beside Gehan, in the valley behind the falls
+// a wild spring welling up in a ring of stones, beside Gehan, in the valley behind the falls
 const SPRING = { x: 71.6 * TS, y: 6.6 * TS };
 const GEHAN = { x: 70.2 * TS, y: 5.3 * TS };
 const SPRING_CV = (() => {
@@ -3367,7 +3367,7 @@ function interact(it) {
   }, { it, kind: it.id === "dragon" ? "Elite" : "Lore", reward: first && xp ? `${xp} training` : "" });
 }
 
-// ---------- NPCs: who they are in the waking world (Bestiary) ----------
+// ---------- NPCs: the keepers (Bestiary) ----------
 const NPC_REFS = CONTENT.npcs;
 function acceptQuest(id) {
   if (accepted(id)) return;
@@ -3865,9 +3865,11 @@ function openBestiary() {
   ids.forEach(id => {
     const n = NPC_REFS[id];
     if (!met.includes(id)) { pages.push("An unknown figure. Their story has not reached you yet. Look for them where travellers gather."); arts.push("unknown"); links.push(null); return; }
-    pages.push(`${n.name}, ${n.title}. ${n.lore}\n\nIn the waking world: ${n.real}, ${n.role}. For the full account, reach out to ${n.real.split(" ")[0]}.\n\nThese figures are fictional tributes, made with consent. The AI voice speaks for no one.`);
+    // the keepers are fictional for now; a real reference (real, role, linkedin) shows only when the content gives one
+    pages.push(n.real ? `${n.name}, ${n.title}. ${n.lore}\n\nIn the waking world: ${n.real}, ${n.role}. For the full account, reach out to ${n.real.split(" ")[0]}.\n\nThese figures are fictional tributes, made with consent. The AI voice speaks for no one.`
+      : `${n.name}, ${n.title}. ${n.lore}\n\nThe figures of this realm are fictional. The AI voice speaks for no one.`);
     arts.push("npc:" + id);
-    links.push([{ label: "LinkedIn", href: n.linkedin, text: n.linkedinLabel }, n.phone && { label: "Phone", text: n.phone }].filter(Boolean));
+    links.push(n.linkedin ? [{ label: "LinkedIn", href: n.linkedin, text: n.linkedinLabel }, n.phone && { label: "Phone", text: n.phone }].filter(Boolean) : null);
   });
   openDialog({ title: "Bestiary", sub: "Those you have met on the road", pages, arts, links }, null, { kind: "Bestiary" });
 }
