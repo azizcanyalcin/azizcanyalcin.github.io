@@ -2171,7 +2171,7 @@ function content(id, idx) {
   const L = CONTENT.lore, vars = () => ({ email: EMAIL, done: QUESTS.filter(q => q.id !== "gate" && qDone(q)).length, controls: CONTENT.controls[coarse ? "touch" : "keyboard"] });
   const page = p => { const v = vars(); return { ...p, sub: fill(p.sub, v), pages: p.pages.map(x => fill(x, v)) }; };
   switch (id) {
-    case "keep": { const p = page(L.keep); if (idx === "all") p.pages = p.pages.concat(STAGES.map((s, i) => fill(CONTENT.statuePage, { roman: ROMAN[i], name: s.name, t: s.t, body: s.body }))); return p; }
+    case "keep": { const p = page(L.keep); if (idx === "all") p.pages = p.pages.concat(STAGES.map((s, i) => fill(CONTENT.statuePage, { roman: ROMAN[i], name: s.name, t: s.t, body: s.body }))); p.key = "keep"; return p; }
     case "sword": { const s = SWORDS[idx]; return { title: s[0], sub: s[1], pages: [s[2]] }; }
     case "gate": return page(state.gateOpen ? L.gateOpen : L.gateSealed);
     default: return L[id] ? { ...page(L[id]), key: id } : undefined;
@@ -2725,13 +2725,24 @@ function computeXP() {
 }
 const XP_FOR = { sign: 100, throne: 150, dragon: 150, oracle: 150, field: 50, sword: 40, statue: 50 };
 let lastXP = null, lastLevel = 1, lastDoneSet = null, wmDirty = true;
+// a recorded sound effect at the sfx volume; the synthesized one plays if the file will not. Each file is loaded once
+// and played from copies, so quick repeats (sword swings) overlap without waiting on the network.
+const CLIPS = {};
+const clip = src => CLIPS[src] || (CLIPS[src] = Object.assign(new Audio(src), { preload: "auto" }));
+function playClip(src, fallback, vol = 1) {
+  if (Snd.cfg.muted) return;
+  const a = clip(src).cloneNode(); a.volume = Math.min(1, Snd.cfg.master * Snd.cfg.sfx * vol);
+  a.play().catch(fallback);
+}
+["audio/swing.mp3", "audio/swing-3.mp3", "audio/flesh.mp3"].forEach(clip);
 function renderLog() {
   wmDirty = true;
   if (!state.gateOpen && QUESTS.every(q => q.id === "gate" || qDone(q))) {
     state.gateOpen = true; save();
     if (lastXP !== null) {
       chat("Every quest of the realm is done. The Gate of Production wakes in the north-east.", "#ffff00");
-      Snd.play("gate"); showBanner("The Gate Awakens", "Travel to the Gate of Production", "pvp");
+      playClip("audio/gate-awakens.mp3", () => Snd.play("gate"));
+      showBanner("The Gate Awakens", "Travel to the Gate of Production", "pvp");
     }
   }
   const trk = $("trk"); trk.innerHTML = "";
@@ -3251,7 +3262,7 @@ function interact(it) {
     if (first) readFlourish(it);
     if (first && it.id === "field") chat("The blades of the field stir. Each can now be read.", "#ffd100");
     if (first && it.id === "keep") chat("The statues of the keep stir. Wake them in their order.", "#ffd100");
-    if (it.id === "sword" && !state.swords.includes(it.idx)) { state.swords.push(it.idx); save(); renderLog(); const w = swordTops[it.idx]; burst(w.x, w.y, "#ffb03a", 18); Snd.play("sword", { pan: Math.max(-0.8, Math.min(0.8, (w.x - player.x) / 150)) }); }
+    if (it.id === "sword" && !state.swords.includes(it.idx)) { state.swords.push(it.idx); save(); renderLog(); const w = swordTops[it.idx]; burst(w.x, w.y, "#ffb03a", 18); playClip("audio/blade-ignite.mp3", () => Snd.play("sword", { pan: Math.max(-0.8, Math.min(0.8, (w.x - player.x) / 150)) })); }
     if (it.id === "gate" && state.gateOpen) { const firstEnd = !has("gateFinal"); markRead("gateFinal"); if (firstEnd) setTimeout(showFinale, 700); }
     if (it.id !== "sword" && it.id !== "keep") markRead(it.id);
     if (it.id === "keep" && !has("keep")) { state.read.push("keep"); save(); renderLog(); }
@@ -4108,7 +4119,7 @@ function attack() {
   const k = COMBO[combo];
   atkStep = combo; atkDur = atkT = k.dur; atkLinger = 0; atkCd = k.cd; comboT = k.cd + 0.5; atkPending = true;
   if (combo === 3) comboT = 0;
-  Snd.play("slash", { step: combo });
+  playClip(combo === 3 ? "audio/swing-3.mp3" : "audio/swing.mp3", () => Snd.play("slash", { step: combo }), 0.55);
   armedT = ARMED_FOR;
 }
 function resolveHit() {
@@ -4132,6 +4143,7 @@ function resolveHit() {
 function hitMob(m, nx, ny, dmg = 1, heavy = false) {
   m.hp -= dmg; m.hitT = 0.14; m.stun = heavy ? 0.45 : 0.32; m.kx = nx * (heavy ? 55 : 37.5); m.ky = ny * (heavy ? 55 : 37.5);
   Snd.play("hit", { pan: Math.max(-0.8, Math.min(0.8, (m.x - player.x) / 150)) });
+  playClip("audio/flesh.mp3", () => {});
   for (let i = 0; i < (heavy ? 12 : 6); i++) parts.push({ x: m.x, y: m.y - 4, vx: (Math.random() - 0.5) * 70 + nx * 30, vy: -Math.random() * 45, life: 0.45, c: ["#fff2c0", "#ffb03a", "#ff6a20"][i % 3], g: 60 });
   if (m.hp <= 0) {
     m.dead = true; m.respawn = 45;
