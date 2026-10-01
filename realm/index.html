@@ -3513,7 +3513,7 @@ function drawTalkPortrait(t) {
   if (talk.id === "odman") drawOdman(g, 24, 80, t, 2);
   if (talk.id === "gehan") drawGehan(g, 24, 90, t, 2);
 }
-// ---------- Od-Man's voice (ElevenLabs Conversational AI) ----------
+// ---------- the keepers' voices (a conversational voice agent) ----------
 // A voice session starts only with a one-time signed URL from the session Worker (worker/), which checks for bots
 // (Turnstile) and counts talks. The page holds no agent id and no key.
 const VOICE_WORKER = {
@@ -3527,8 +3527,8 @@ const TURNSTILE_SDK = "https://challenges.cloudflare.com/turnstile/v0/api.js?ren
 const OD_KICKOFF = "(The traveller steps up to your hearth.)";
 const GE_KICKOFF = "(The traveller sits down by the spring.)";
 // tests pass their own object (undefined) and may change it mid-run
-// ElevenLabs refuses new sessions once the plan's credits are spent
-const VOICE_QUOTA_LINE = "My voice is spent — the ElevenLabs credits are used up.";
+// the voice service refuses new sessions once the plan's credits are spent
+const VOICE_QUOTA_LINE = "My voice is spent for now, traveller. Talk with me the old way.";
 const isQuotaError = e => /quota|credits/i.test(String(e && e.message || e));
 const VOICE_T = undefined || { farewell: 275, dismissWait: 10, cool: 60 };
 // tests stand in for the Worker's address (undefined, or null for no voice); the public build reads only VOICE_WORKER
@@ -3847,7 +3847,7 @@ async function voiceStart(npc = "odman") {
   const m = N.mem();
   // the notice shows on every voice talk until the traveller clicks it away
   const you = $("talk-you"), priv = Object.assign(document.createElement("a"), { href: "../privacy.html", target: "_blank", rel: "noopener", textContent: "Privacy" });
-  you.hidden = !!m.noticed; if (!m.noticed) you.replaceChildren(`Your voice goes to ElevenLabs so ${N.name} can hear you. Transcripts are kept 7 days. `, priv);
+  you.hidden = !!m.noticed; if (!m.noticed) you.replaceChildren(`Your voice is streamed so ${N.name} can hear you, and never recorded. Transcripts are kept 7 days. `, priv);
   try { const s = await navigator.mediaDevices.getUserMedia({ audio: true }); s.getTracks().forEach(t => t.stop()); }
   catch (e) { voiceMicDenied = true; if (voice === v) voiceFallback(N.lines.deaf, false); return; }
   if (voice !== v) return;
