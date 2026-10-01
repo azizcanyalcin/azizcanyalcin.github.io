@@ -67,6 +67,12 @@ button{font:inherit;color:inherit}
 .boon{display:flex;align-items:center;gap:8px;margin-top:6px;font-family:var(--title);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ember)}
 .boon i{width:9px;height:9px;transform:rotate(45deg);background:var(--ember);box-shadow:0 0 10px rgba(255,150,60,.9);animation:emberPulse 1.2s ease-in-out infinite}
 .boon span{color:var(--bone-2);letter-spacing:.06em}
+/* Raise the Fallen, shown like a passive: one skull per skeleton standing */
+.risen{display:flex;align-items:center;gap:8px;margin-top:6px;font-family:var(--title);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#d8cfb6}
+.risen .pips{display:flex;gap:2px}
+.risen .pips i{font-style:normal;font-size:13px;line-height:1;letter-spacing:0;opacity:.28;filter:grayscale(1) brightness(.7)}
+.risen .pips i.on{opacity:1;filter:drop-shadow(0 0 4px rgba(232,224,204,.6))}
+.risen span:last-child{color:var(--bone-2);letter-spacing:.06em}
 .vrow>span{font-size:11.5px;color:var(--bone-2);white-space:nowrap}
 .vbar{position:relative;width:236px;height:9px;background:rgba(0,0,0,.7);box-shadow:0 0 0 1px rgba(0,0,0,.9),0 0 0 2px rgba(236,225,200,.16)}
 .vbar i{position:absolute;left:0;top:0;bottom:0;width:100%;transition:width .25s}
@@ -129,6 +135,14 @@ button{font:inherit;color:inherit}
 .cross .slot kbd{position:absolute;left:50%;bottom:-13px;transform:translateX(-50%);font-family:var(--title);font-weight:700;font-size:10px;letter-spacing:.06em;color:var(--bone-2);text-shadow:var(--tx);white-space:nowrap}
 .cross .slot:hover::before{box-shadow:0 0 0 1px #000,0 0 0 2px var(--ember),inset 0 0 12px rgba(232,150,74,.35),0 0 16px rgba(232,150,74,.35)}
 .cross .slot.on::before{box-shadow:0 0 0 1px #000,0 0 0 2px var(--ember-hi),inset 0 0 14px rgba(255,160,70,.5)}
+.cross [data-pos="center"]{left:52px;top:52px}
+.orders{position:absolute;left:206px;bottom:46px;z-index:3;display:flex;gap:6px;align-items:center;font-family:var(--title);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--bone-2);text-shadow:var(--tx)}
+.orders span{cursor:pointer;touch-action:none;padding:4px 7px;background:rgba(9,7,12,.6);box-shadow:inset 0 0 0 1px var(--line)}
+.orders span.on{color:var(--ember-hi);box-shadow:inset 0 0 0 1px var(--ember)}
+.orders kbd{margin-right:5px;font-family:inherit;color:var(--ember)}
+.orders .listen{width:9px;height:9px;border-radius:50%;background:#e0402a;box-shadow:0 0 8px #e0402a;animation:blinkl 1.4s ease-in-out infinite}
+#game.reading .orders{visibility:hidden}
+.cross [data-pos="center"][hidden]{display:none}
 .cross [data-pos="top"]{left:52px;top:0}.cross [data-pos="left"]{left:0;top:52px}.cross [data-pos="right"]{left:104px;top:52px}.cross [data-pos="bottom"]{left:52px;top:104px}
 .cross [data-pos="bottom"]::before{box-shadow:0 0 0 1px #000,0 0 0 2px var(--ember),inset 0 0 10px rgba(0,0,0,.9),0 6px 14px rgba(0,0,0,.6)}
 .slot .tt{position:absolute;left:calc(100% + 12px);top:50%;transform:translateY(-50%);white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .12s;z-index:6}
@@ -461,6 +475,7 @@ button{font:inherit;color:inherit}
       <div class="tp"><i id="xp-fill"></i></div>
       <div class="vmeta"><span id="xp-t">Level 1</span><span class="sep">·</span><span id="bar-q-t">Quests 0 / 8</span></div>
       <div class="boon" id="boon" hidden><i></i><b id="boon-name"></b><span id="boon-t"></span></div>
+      <div class="risen" id="risen" hidden title="Skeletons standing with you"><span class="pips"><i>💀</i><i>💀</i><i>💀</i></span><b>Risen</b><span id="risen-n">0/3</span></div>
       <i id="bar-q" hidden></i><i id="bar-s" hidden></i>
     </div>
   </div>
@@ -487,6 +502,7 @@ button{font:inherit;color:inherit}
   <div class="chat" aria-live="polite"><div class="chat-log" id="chat"></div></div>
 
   <div class="cross" id="slots" aria-label="Actions"></div>
+  <div class="orders" id="orders" hidden aria-label="Skeleton commands"><span data-o="attack"><kbd>1</kbd>Attack</span><span data-o="defend"><kbd>2</kbd>Defend</span><span data-o="back"><kbd>3</kbd>Go back</span><i class="listen" id="listen" hidden title="Listening for your commands"></i></div>
 
   <div class="tip" id="hint" hidden></div>
   <div class="zonetext" id="banner" hidden><b id="banner-name"></b><small id="banner-sub"></small></div>
@@ -1006,14 +1022,23 @@ addCol(12 * TS + 2, 38 * TS - 2, 12, 8);
   spots.sort((a, b) => a[1] - b[1]).forEach(([tx, ty]) => mushroom(tx * TS + 4 + rng() * 8, ty * TS + 8 + rng() * 6, 1 + Math.floor(rng() * 2.4)));
 }
 
-// Field of swords
+// Field of swords and staves: a blade for work done in service, a staff with a crystal for work of his own making
 const SWORD_OFF = [[-6, -2], [-3, 1], [0, -3], [3, 0], [6, -2], [-5, 3], [1, 3], [5, 3]];
+const isCraft = i => CONTENT.blades[i].kind === "craft";
 SWORD_OFF.forEach(([dx, dy], i) => {
   const x = (51 + dx) * TS + 8, y = (39 + dy) * TS + 12, lean = (hash2(i, 9) - 0.5) * 0.5;
   const L = new Layer(20, 34);
   blob(L, 10, 30, 7, 3.2, PAL.blood, i, 0.3, 0.15);
   const off = r => Math.round((26 - r) * lean);
-  for (let r = 0; r < 28; r++) {
+  if (isCraft(i)) for (let r = 0; r < 28; r++) {
+    const o = off(r), cx = 10 + o;
+    if (r < 7) {   // the crystal, held in a fork of the wood
+      const w = [0, 1, 2, 2, 2, 1, 0][r];
+      for (let k = -w - 1; k <= w + 1; k++) L.px(cx + k, r, Math.abs(k) === w + 1 ? C("#1e2a48") : k < 0 ? C("#e8f8ff") : k === 0 ? C("#9ad8ff") : C("#5a9ad8"));
+      if (r >= 4) { L.px(cx - w - 2, r, C("#3a2412")); L.px(cx + w + 2, r, C("#3a2412")); }
+    } else { L.px(cx, r, r === 12 || r === 13 ? C("#c9a227") : pick(PAL.bark, 0.65, cx, r)); L.px(cx + 1, r, r === 12 || r === 13 ? C("#8a6a1a") : pick(PAL.bark, 0.3, cx + 1, r)); }
+  }
+  else for (let r = 0; r < 28; r++) {
     const o = off(r), cx = 10 + o;
     if (r < 2) { L.rect(cx - 1, r, 3, 1, PAL.metal[r ? 1 : 2]); }
     else if (r < 7) { L.px(cx, r, C("#3a2016")); L.px(cx - 1, r, C("#24130c")); }
@@ -1022,7 +1047,7 @@ SWORD_OFF.forEach(([dx, dy], i) => {
   }
   sprite(L, x, y, 10, 31); addCol(x - 4, y - 4, 8, 5);
   swordTops.push({ x: x + Math.round(10 * lean), y: y - 16, bx: x, by: y, lean });
-  inter.push({ id: "sword", idx: i, x, y: y + 4, r: 18, my: 36, label: "Read the blade" });
+  inter.push({ id: "sword", idx: i, x, y: y + 4, r: 18, my: 36, label: isCraft(i) ? "Read the staff" : "Read the blade" });
 });
 (function deadTree() {
   const x = 928, y = 588;
@@ -2159,7 +2184,7 @@ const SPRING_NPC = { kind: "spring", x: SPRING.x, y: SPRING.y + 4 };
   for (let y = brow[70] - 1; y < 17; y++) set(70, y, T.PATH);
   // a strip of bank along the river below the cliff
   for (let y = 17; y <= 26; y++) for (let x = W0; x < MW; x++) if (get(x, y) === T.FOREST && vnoise(x * 0.6, y * 0.6) > 0.5 && [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([i, j]) => get(x + i, y + j) === T.WATER)) set(x, y, T.GRASS);
-  shadeGround(58 * TS, 0, MPW, MPH, (tx, ty) => tx >= W0 || cut.has(ty * MW + tx));
+  shadeGround(56 * TS, 0, MPW, MPH, (tx, ty) => tx >= W0 || cut.has(ty * MW + tx) || get(tx, ty) === T.WATER);   // the mere's own water too, so no seam shows where the river was cut
   // the cliff's face, seen from the valley below: a mossy brow, then layered stone darkening to its foot
   for (let x = W0 * TS; x < MPW; x++) {
     const tx = x >> 4, y0 = brow[tx] * TS + 4 + Math.floor(vnoise(x / 6, 1) * 4), y1 = (foot[tx] + 1) * TS;
@@ -2180,8 +2205,14 @@ const SPRING_NPC = { kind: "spring", x: SPRING.x, y: SPRING.y + 4 };
     const v = side ? 0.12 : ly === 0 ? 0.08 : ly === 1 ? 0.78 : 0.5 - ly * 0.05 + (hash2(x >> 2, y / 6 | 0) - 0.5) * 0.12;
     const c = pick(PAL.stone, v, x, y), i = (y * MPW + x) * 4; G.d[i] = c[0]; G.d[i + 1] = c[1]; G.d[i + 2] = c[2];
   }
-  // no leaves over the river where it was cut through the old forest
-  cut.forEach(i => { const tx = i % MW, ty = i / MW | 0; for (let y = 0; y < TS; y++) for (let x = 0; x < TS; x++) O.d[((ty * TS + y) * MPW + tx * TS + x) * 4 + 3] = 0; });
+  // leaves over the river: the canopy may hang a few ragged pixels past the bank, never more, so the cut through the
+  // old forest reads as a natural shore and not as squares of missing leaves
+  const isW = (x, y) => get(x >> 4, y >> 4) === T.WATER;
+  for (let y = 15 * TS; y < 27 * TS; y++) for (let x = 59 * TS; x < 71 * TS; x++) {
+    if (!isW(x, y)) continue;
+    let d = 0; while (d < 10 && isW(x - d, y) && isW(x + d, y) && isW(x, y - d) && isW(x, y + d)) d++;
+    if (d > 2 + vnoise(x / 5, y / 5) * 6) O.d[(y * MPW + x) * 4 + 3] = 0;
+  }
   // the forest's canopy over the new ground, trees and flowers on the heights
   for (let ty = 0; ty < MH; ty++) for (let tx = W0; tx < MW; tx++) if (get(tx, ty) === T.FOREST && erng() < 0.72)
     blob(O, tx * TS + 8 + (erng() - 0.5) * 8, ty * TS + 6 + (erng() - 0.5) * 8, 11 + erng() * 6, 9 + erng() * 5, PAL.fcanopy, tx * 7 + ty);
@@ -3425,9 +3456,9 @@ function interact(it) {
   const xp = it.id === "sword" ? XP_FOR.sword : it.id === "gate" ? (state.gateOpen ? 100 : 0) : XP_FOR[it.id] || 0;
   openDialog(c, () => {
     if (first) readFlourish(it);
-    if (first && it.id === "field") chat("The blades of the field stir. Each can now be read.", "#ffd100");
+    if (first && it.id === "field") chat("The blades and staves of the field stir. Each can now be read.", "#ffd100");
     if (first && it.id === "keep") chat("The statues of the keep stir. Wake them in their order.", "#ffd100");
-    if (it.id === "sword" && !state.swords.includes(it.idx)) { state.swords.push(it.idx); save(); renderLog(); const w = swordTops[it.idx]; burst(w.x, w.y, "#ffb03a", 18); playClip("audio/blade-ignite.mp3", () => Snd.play("sword", { pan: Math.max(-0.8, Math.min(0.8, (w.x - player.x) / 150)) })); }
+    if (it.id === "sword" && !state.swords.includes(it.idx)) { state.swords.push(it.idx); save(); renderLog(); if (state.swords.length === 8) { $("slots").querySelector('[data-pos="center"]').hidden = false; renderOrders(); chat("A new power: Raise the Fallen. Press R by a fallen foe.", "#ffd100"); showBanner("Raise the Fallen", "The relics remember the fallen", "pvp"); } const w = swordTops[it.idx]; burst(w.x, w.y, isCraft(it.idx) ? "#9ad8ff" : "#ffb03a", 18); playClip("audio/blade-ignite.mp3", () => Snd.play("sword", { pan: Math.max(-0.8, Math.min(0.8, (w.x - player.x) / 150)) })); }
     if (it.id === "gate" && state.gateOpen) { const firstEnd = !has("gateFinal"); markRead("gateFinal"); if (firstEnd) setTimeout(showFinale, 700); }
     if (it.id !== "sword" && it.id !== "keep") markRead(it.id);
     if (it.id === "keep" && !has("keep")) { state.read.push("keep"); save(); renderLog(); }
@@ -3736,16 +3767,16 @@ function odVoiceVars() {
 const fieldState = () => state.swords.length >= 8 ? "done" : accepted("field") || state.swords.length > 0 ? "taken" : "new";
 function bladesText() {
   const lit = [...state.swords].sort((a, b) => a - b), name = i => `${SWORDS[i][0]} (${SWORDS[i][1]})`;
-  if (!lit.length) return "All eight blades sleep.";
-  if (lit.length >= 8) return "All eight blades burn.";
+  if (!lit.length) return "All eight relics sleep.";
+  if (lit.length >= 8) return "All eight relics burn.";
   return `Burning: ${lit.map(name).join(", ")}. Asleep: ${SWORDS.map((_, i) => i).filter(i => !lit.includes(i)).map(name).join(", ")}.`;
 }
 // like Od-Man's, every opening ends in one question and carries no name
 function geFirstLine() {
   const q = fieldState(), n = state.swords.length;
   if (hpLow() === "yes") return "You are hurt. Sit, let the water cool it. Who did this to you?";
-  if (q === "done") return "Eight blades burn in the field; the spring felt every one. Which road will you walk next?";
-  if (q === "taken") return n > 0 ? `${["One", "Two", "Three", "Four", "Five", "Six", "Seven"][n - 1]} of eight blades burn. Which sleeping road shall I tell you about?` : "The field still waits in the south-east. Shall I tell you what sleeps there, or mark the way?";
+  if (q === "done") return "All eight relics burn in the field; the spring felt every one. Which road will you walk next?";
+  if (q === "taken") return n > 0 ? `${["One", "Two", "Three", "Four", "Five", "Six", "Seven"][n - 1]} of eight relics burn. Which sleeping road shall I tell you about?` : "The field still waits in the south-east. Shall I tell you what sleeps there, or mark the way?";
   if (geMem().visits) return "You came back to the water. The field's trial still waits. Will you take it this time?";
   return "You found me. Few come through the falls, traveller. Sit by the water: what road brought you here?";
 }
@@ -3954,6 +3985,7 @@ function exitTavern() {
     if (!has("sign")) chat("A tall sign stands by the campfire at the Wayfarer's Rest, a lantern on its arm. Read it first (E).", "#ffd070"); });
 }
 function enterTavern() {
+  crumbleAll();
   Snd.play("open");
   fadeThen(() => { player.x = TAV_SPAWN[0]; player.y = TAV_SPAWN[1] - 6; player.dir = "up"; state.scene = "tavern"; state.pos = [player.x, player.y]; save(); });
 }
@@ -3978,8 +4010,9 @@ let resetArm = false;
 $("talk-you").addEventListener("click", () => { const id = (voice && voice.npc) || (talk && talk.id), m = (VNPCS[id] || VNPCS.odman).mem(); if (!m.noticed) { m.noticed = true; save(); } $("talk-you").hidden = true; });
 $("mn-reset").addEventListener("click", e => {
   if (!resetArm) { resetArm = true; e.target.textContent = "Click again to confirm"; setTimeout(() => { resetArm = false; e.target.textContent = "Reset Progress"; }, 3000); return; }
-  Object.assign(state, { shards: [], lit: 0, read: [], gateOpen: false, swords: [], explored: "", zones: [], pos: null, bossDown: false, scene: "tavern", quests: [], met: [], odmem: null, gemem: null, roads: [], words: {}, heard: {}, mark: null, who: {} }); boon = null; renderBoon(); odCoolUntil = 0; bossReset(); player.x = TAV_SPAWN[0]; player.y = TAV_SPAWN[1]; boat.riding = false; boat.x = BOAT_HOME[0]; boat.y = BOAT_HOME[1]; boat.vx = boat.vy = 0; state.boatPos = null;
+  Object.assign(state, { shards: [], lit: 0, read: [], gateOpen: false, swords: [], explored: "", zones: [], pos: null, bossDown: false, scene: "tavern", quests: [], met: [], odmem: null, gemem: null, roads: [], words: {}, heard: {}, mark: null, who: {} }); boon = null; renderBoon(); odCoolUntil = 0; bossReset(); player.x = TAV_SPAWN[0]; player.y = TAV_SPAWN[1]; boat.riding = false; state.rowing = false; boat.x = BOAT_HOME[0]; boat.y = BOAT_HOME[1]; boat.vx = boat.vy = 0; state.boatPos = null;
   explored.fill(0); lastTX = -1; miniDirty = true; shards.forEach(s => s.got = false); save();
+  crumbleAll(); corpses.length = 0; $("slots").querySelector('[data-pos="center"]').hidden = true; renderOrders();
   lastXP = null; lastLevel = 1; renderLog(); renderWho();
   e.target.textContent = "Reset Progress"; resetArm = false; closeMenu();
   chat("Your progress has been reset.", "#ffff00");
@@ -4014,8 +4047,9 @@ if (has("gateFinal")) $("mn-credits").hidden = false;
 let sprintToggle = false;
 function slotIcon(cv, kind) {
   const c = cv.getContext("2d"), R = (x, y, w, h, col) => { c.fillStyle = col; c.fillRect(x, y, w, h); };
-  const bg = { bestiary: ["#3a1a24", "#0e0610"], sound: ["#2a2a3a", "#0c0c14"], attack: ["#4a3a3a", "#140c0c"], interact: ["#5a1208", "#1e0502"], sprint: ["#1f4a14", "#081a04"], map: ["#5a4222", "#1f1408"], quest: ["#3a2410", "#120a04"], full: ["#26324a", "#0a0f1a"], menu: ["#34302a", "#0e0c0a"] }[kind];
+  const bg = { raise: ["#3a3424", "#0c0a06"], bestiary: ["#3a1a24", "#0e0610"], sound: ["#2a2a3a", "#0c0c14"], attack: ["#4a3a3a", "#140c0c"], interact: ["#5a1208", "#1e0502"], sprint: ["#1f4a14", "#081a04"], map: ["#5a4222", "#1f1408"], quest: ["#3a2410", "#120a04"], full: ["#26324a", "#0a0f1a"], menu: ["#34302a", "#0e0c0a"] }[kind];
   const g = c.createRadialGradient(10, 7, 1, 10, 10, 14); g.addColorStop(0, bg[0]); g.addColorStop(1, bg[1]); c.fillStyle = g; c.fillRect(0, 0, 20, 20);
+  if (kind === "raise") { R(6, 3, 8, 7, "#e8e0cc"); R(7, 6, 2, 2, "#1a0e08"); R(11, 6, 2, 2, "#1a0e08"); R(8, 10, 4, 2, "#e8e0cc"); R(9, 10, 1, 1, "#1a0e08"); R(4, 14, 12, 2, "#c9b98a"); R(3, 16, 14, 2, "#7a6a48"); }
   if (kind === "interact") { R(4, 5, 12, 10, "#e0cfa8"); R(4, 5, 12, 1, "#f4e8cc"); R(3, 4, 2, 12, "#9a7a48"); R(15, 4, 2, 12, "#9a7a48"); R(6, 8, 8, 1, "#6a4a2a"); R(6, 10, 7, 1, "#6a4a2a"); R(6, 12, 5, 1, "#6a4a2a"); }
   if (kind === "sprint") { R(8, 3, 5, 9, "#7a4a22"); R(8, 11, 9, 5, "#7a4a22"); R(8, 15, 10, 2, "#2a1408"); R(9, 4, 1, 8, "#a8703a"); R(2, 6, 4, 1, "#e8ffd8"); R(1, 9, 5, 1, "#e8ffd8"); R(2, 12, 4, 1, "#e8ffd8"); }
   if (kind === "map") { R(3, 4, 14, 12, "#d8c291"); R(3, 4, 14, 1, "#f0e0b0"); R(3, 15, 14, 1, "#8a6a3a"); for (let i = 0; i < 6; i++) R(5 + i * 2, 12 - i, 1, 1, "#8a1a10"); R(14, 5, 1, 3, "#8a1a10"); R(13, 6, 3, 1, "#8a1a10"); }
@@ -4029,6 +4063,7 @@ function slotIcon(cv, kind) {
 }
 const SLOTS = [
   { kind: "attack", pos: "bottom", key: "Space", name: "Attack", d: "Swing your blade. Space, J or click.", act: () => attack() },
+  { kind: "raise", pos: "center", key: "R", name: "Raise the Fallen", d: "Raise a fallen foe as a skeleton (three at most).", act: () => raiseFallen() },
   { kind: "interact", pos: "right", key: "E", name: "Interact", d: "Read or speak with what is nearby.", act: () => { if (dlg) advance(); else interact(nearest); } },
   { kind: "sprint", pos: "left", key: "Shift", name: "Sprint", d: "Walk faster. Hold Shift, or click to toggle.", act: b => { sprintToggle = !sprintToggle; b.classList.toggle("on", sprintToggle); } },
   { kind: "map", pos: "top", key: "M", name: "World Map", d: "Explored ground, quests and shards.", act: () => toggleMap() },
@@ -4046,6 +4081,7 @@ SLOTS.forEach(s => {
   b.addEventListener("click", () => { startGame(); Snd.play("click"); s.act(b); focusGame(); });
   if (s.pos) { b.dataset.pos = s.pos; $("slots").appendChild(b); } else $("sys").appendChild(b);
 });
+$("slots").querySelector('[data-pos="center"]').hidden = !skillOpen();
 
 // ---------- sound controls ----------
 function syncSnd() {
@@ -4162,6 +4198,7 @@ async function enterRealm(withVoice = true) {
   if (titlePhase !== "prep" || $("enter").disabled) return;
   titlePhase = "enter"; $("enter").disabled = true; $("c-agree").disabled = $("c-decline").disabled = true;
   if (withVoice) await askMic(); else voiceMicDenied = true;   // without voice the keepers talk in text, and no microphone is asked for
+  voiceAgreed = withVoice && voiceOn() && !voiceMicDenied;   // and the skeletons may hear their commands (only where the consent page was shown)
   fadeAudio(theme, 0, TITLE_T.fade, () => theme.pause());
   $("title").classList.add("leave");
   fadeThen(startGame);
@@ -4214,6 +4251,8 @@ addEventListener("keydown", e => {
   }
   if (dlg && (e.code === "ArrowLeft" || e.code === "KeyA")) { e.preventDefault(); pageBack(); return; }
   if (dlg && (e.code === "ArrowRight" || e.code === "KeyD")) { e.preventDefault(); advance(); return; }
+  if (e.code === "KeyR") { if (!dlg) raiseFallen(); return; }
+  if (/^Digit[1-3]$/.test(e.code) && minions.length) { command(["attack", "defend", "back"][+e.code.slice(5) - 1]); return; }
   if (e.code === "KeyM") { toggleMap(); return; }
   if (e.code === "KeyL") { toggleTracker(); return; }
   if (e.code === "KeyB") { openBestiary(); return; }
@@ -4422,7 +4461,7 @@ function resolveHit() {
   if (boss.active && !state.bossDown) {
     const dx = boss.x - player.x, dy = (boss.y - 12) - (player.y - 6), d = Math.hypot(dx, dy);
     let da = Math.atan2(dy, dx) - ang; da = Math.atan2(Math.sin(da), Math.cos(da));
-    if (d < k.reach + 8 && (Math.abs(da) < k.arc + 0.1 || d < 14)) { hitBoss(dx / (d || 1), dy / (d || 1), k.dmg * boonDmg()); hits++; }
+    if (d < k.reach + 8 && (Math.abs(da) < k.arc + 0.1 || d < 14)) { if (boss.ward > 0) { if (time - boss.said > 3) { boss.said = time; chat("Your blade slides off the ward.", "#bfb398"); } Snd.play("cold"); } else hitBoss(dx / (d || 1), dy / (d || 1), k.dmg * boonDmg()); hits++; }
   }
   if (hits) { hitStop = heavy ? 0.09 : 0.06; shake(heavy ? 2.5 : 1.4, heavy ? 0.22 : 0.14); Snd.play("impact", { heavy }); }
 }
@@ -4432,6 +4471,7 @@ function hitMob(m, nx, ny, dmg = 1, heavy = false) {
   playClip("audio/flesh.mp3", () => {});
   for (let i = 0; i < (heavy ? 12 : 6); i++) parts.push({ x: m.x, y: m.y - 4, vx: (Math.random() - 0.5) * 70 + nx * 30, vy: -Math.random() * 45, life: 0.45, c: ["#fff2c0", "#ffb03a", "#ff6a20"][i % 3], g: 60 });
   if (m.hp <= 0) {
+    addCorpse(m);
     m.dead = true; m.respawn = 45;
     burst(m.x, m.y - 4, MOB[m.type].col, 18);
     Snd.play("mobdie", { type: m.type });
@@ -4446,12 +4486,13 @@ function hurtPlayer(m, dx, dy) {
   hurtBy(MOB[m.type].name, dx, dy, MOB[m.type].dmg);
 }
 function playerDie(name) {
+  crumbleAll();
   player.dead = true; player.moving = false;
   Snd.play("death");
   $("death").hidden = false;
   chat(`You were defeated by ${name === "Model Collapse" ? name : name.startsWith("A ") ? name.toLowerCase() : (/^[AEIOU]/.test(name) ? "an " : "a ") + name}.`, "#ff3020");
   setTimeout(() => {
-    boat.riding = false; player.x = 32 * TS + 8; player.y = 42 * TS + 10; player.kvx = player.kvy = 0;
+    boat.riding = false; state.rowing = false; player.x = 32 * TS + 8; player.y = 42 * TS + 10; player.kvx = player.kvy = 0;
     player.hp = player.maxHp; player.inv = 2; player.dead = false; player.dir = "up";
     state.pos = [player.x, player.y]; state.scene = "realm"; save();
     mobs.forEach(o => { if (!o.dead) { o.x = o.hx; o.y = o.hy; o.stun = 0; } });
@@ -4473,6 +4514,7 @@ function updateMobs(dt) {
   if (atkPending && atkT <= atkDur * 0.55) { atkPending = false; resolveHit(); }
   if (atkQueued && !atkCd) { atkQueued = false; attack(); }
   if (!started || !$("finale").hidden) return;
+  updateCorpses(dt); updateMinions(dt); shieldT = Math.max(0, shieldT - dt);
   // knockback on the player
   if (!boat.riding && Math.abs(player.kvx) + Math.abs(player.kvy) > 2) {
     if (!blockedPx(player.x + player.kvx * dt, player.y)) player.x += player.kvx * dt;
@@ -4492,6 +4534,14 @@ function updateMobs(dt) {
       return;
     }
     m.t += dt; m.hitT = Math.max(0, m.hitT - dt); m.cd = Math.max(0, m.cd - dt);
+    // a skeleton close by draws the foe, unless the hero is closer still
+    const sk = minions.find(s => s.rise <= 0 && Math.hypot(s.x - m.x, s.y - m.y) < 40);
+    if (sk && m.stun <= 0 && Math.hypot(sk.x - m.x, sk.y - m.y) < Math.hypot(player.x - m.x, player.y - m.y)) {
+      const sx = sk.x - m.x, sy = sk.y - m.y, sd = Math.hypot(sx, sy) || 1;
+      moveMob(m, sx / sd * def.chase, sy / sd * def.chase, dt); m.dir = sx < 0 ? -1 : 1;
+      if (sd < 10 && m.cd <= 0) { m.cd = 0.9; sk.hp -= def.dmg; sk.cd = Math.max(sk.cd, 0.2); }
+      return;
+    }
     const dx = player.x - m.x, dy = (player.y - 5) - m.y, d = Math.hypot(dx, dy);
     const fromHome = Math.hypot(m.x - m.hx, m.y - m.hy);
     if (m.stun > 0) {
@@ -4533,12 +4583,209 @@ function drawMob(m, cx, cy, t) {
   else ctx.drawImage(cv, x, y);
   ctx.globalAlpha = 1;
 }
+// ---------- Raise the Fallen ----------
+// Slain foes leave their bodies for a while; once the Field's eight relics burn, the hero can raise them as skeletons
+// (up to three) and command them, by key or by voice: attack, defend, go back.
+const CORPSE_LIFE = 30, CORPSE_MAX = 8;
+const corpses = [];
+function addCorpse(m) {
+  corpses.push({ x: m.x, y: m.y, type: m.type, t: CORPSE_LIFE });
+  if (corpses.length > CORPSE_MAX) corpses.shift();
+}
+function updateCorpses(dt) {
+  for (let i = corpses.length - 1; i >= 0; i--) if ((corpses[i].t -= dt) <= 0) corpses.splice(i, 1);
+}
+// a body lies flat: the mob's own art, darkened and turned on its side, fading in its last five seconds
+function drawCorpse(c, cx, cy) {
+  const cv = MOB_ART[c.type].n[0], a = Math.min(1, c.t / 5);
+  ctx.save(); ctx.globalAlpha = 0.85 * a; ctx.filter = "brightness(0.45) saturate(0.4)";
+  ctx.translate(Math.round(c.x - cx), Math.round(c.y - cy)); ctx.rotate(Math.PI / 2);
+  ctx.drawImage(cv, -cv.width / 2, -cv.height / 2);
+  ctx.restore();
+  ctx.fillStyle = `rgba(0,0,0,${0.3 * a})`; ctx.fillRect(Math.round(c.x - 7 - cx), Math.round(c.y + 3 - cy), 14, 2);
+}
+const MINION_MAX = 3, MINION_HP = 60, RAISE_R = 60, MINION_DMG = 0.3;   // a skeleton strikes for 0.3 of the hero's blow
+const minions = [];
+let order = "back";
+function skillOpen() { return state.swords.length >= 8; }   // a declaration: the slot bar asks before this section runs
+// a skeleton: bone-white rows, two walking frames (the same row format as the mobs), about two thirds of the hero's height
+const SKEL_ART = mobFrames([
+  ["....kkk....", "...kwwwk...", "..kwwwwwk..", "..kwbwbwk..", "..kwwwwwk..", "...kwkwk...", "....kwk....", "..kkwwwkk..", ".kw.kwk.wk.", ".kw.kwk.wk.", "..k.kwk.k..", "....kwk....", "...kw.wk...", "..kw...wk..", "..kw...wk..", "..kk...kk.."],
+  ["....kkk....", "...kwwwk...", "..kwwwwwk..", "..kwbwbwk..", "..kwwwwwk..", "...kwkwk...", "....kwk....", "..kkwwwkk..", ".kw.kwk.wk.", ".kw.kwk.wk.", "..k.kwk.k..", "....kwk....", "...kw.wk...", "...kw.wk...", "...kw.wk...", "...kk.kk..."],
+], { k: [26, 22, 30], w: [214, 208, 190], b: [190, 40, 30] });
+function raiseFallen() {
+  if (!skillOpen()) { chat("The fallen do not answer you yet.", "#bfb398"); return "locked"; }
+  if (player.dead || boat.riding || inTav(player.x, player.y)) return "nowhere";
+  if (minions.length >= MINION_MAX) { chat("Three already stand with you.", "#bfb398"); return "full"; }
+  let best = -1, bd = RAISE_R;
+  corpses.forEach((c, k) => { const d = Math.hypot(c.x - player.x, c.y - player.y); if (d < bd) { bd = d; best = k; } });
+  if (best < 0) { chat("No fallen lie near.", "#bfb398"); return "none"; }
+  const c = corpses.splice(best, 1)[0];
+  const used = new Set(minions.map(s => s.i)), i = [0, 1, 2].find(k => !used.has(k));
+  minions.push({ x: c.x, y: c.y, hp: MINION_HP, rise: 0.6, cd: 0, t: 0, i, dir: 1, tgt: null });
+  burst(c.x, c.y - 4, "#d6d0be", 12); Snd.play("ignite");
+  renderOrders();
+  if (!orderHinted) { orderHinted = true; chat(orderHint(), "#ffd100"); }   // once per visit: how to command them
+  return "raised";
+}
+function wardHit() {
+  boss.ward = Math.max(0, boss.ward - 1); Snd.play("bossHit");
+  for (let i = 0; i < 8; i++) parts.push({ x: boss.x + (Math.random() - 0.5) * 20, y: boss.y - 16, vx: (Math.random() - 0.5) * 60, vy: -Math.random() * 40, life: 0.5, c: "#c8b8ff", g: 40 });
+  if (boss.ward === 0) { boss.wardT = WARD_EVERY; chat("The ward shatters! Strike now.", "#ffd100"); hitBoss(0, 0, 1); boss.stun = 2; boss.claw = 0; boss.tele = 0; }
+}
+// the Great Sweep lands: every skeleton still inside the ring breaks, and the hero inside it is struck hard
+function sweepLand() {
+  Snd.play("bossClaw"); shake(3, 0.3);
+  for (let k = minions.length - 1; k >= 0; k--) { const s = minions[k]; if (Math.hypot(s.x - boss.x, (s.y - boss.y) / 0.7) < SWEEP_R) { burst(s.x, s.y - 6, "#bfb6a0", 10); minions.splice(k, 1); } }
+  renderOrders();
+  if (Math.hypot(player.x - boss.x, (player.y - boss.y) / 0.7) < SWEEP_R) hurtBy("Model Collapse", player.x - boss.x, player.y - boss.y, 35);
+}
+// the bar's commands can be tapped or clicked: on a touch screen without voice, it is the only way to command them
+document.getElementById("orders").addEventListener("pointerdown", e => { const el = e.target.closest("[data-o]"); if (!el) return; e.preventDefault(); e.stopPropagation(); command(el.dataset.o); });
+// while any risen skeleton holds "defend", a pale shield stands around the hero, held from wherever they stand
+let shieldT = 0;
+function shieldUp() { return order === "defend" && minions.some(s => s.rise <= 0); }
+function drawShield(cx, cy, t) {
+  if (!shieldUp()) return;
+  const x = player.x - cx, y = player.y - 8 - cy, flash = shieldT > 0 ? shieldT * 3 : 0;
+  ctx.save();
+  minions.forEach(s => { if (s.rise > 0) return; ctx.strokeStyle = `rgba(150,220,255,${0.18 + 0.08 * Math.sin(t * 6 + s.i)})`; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(s.x - cx, s.y - 9 - cy); ctx.lineTo(x, y); ctx.stroke(); });
+  ctx.fillStyle = `rgba(140,210,255,${0.12 + 0.05 * Math.sin(t * 3) + 0.25 * flash})`; ctx.strokeStyle = `rgba(190,235,255,${0.55 + 0.4 * flash})`; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.ellipse(x, y, SHIELD_R, SHIELD_R * 0.85, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.restore();
+}
+function renderOrders() {
+  const r = $("risen"); r.hidden = !skillOpen(); $("risen-n").textContent = `${minions.length}/${MINION_MAX}`;
+  r.querySelectorAll(".pips i").forEach((p, k) => p.classList.toggle("on", k < minions.length));
+  const bar = $("orders"); bar.hidden = !minions.length;
+  bar.querySelectorAll("[data-o]").forEach(el => el.classList.toggle("on", el.dataset.o === order));
+}
+renderOrders();   // the Risen pips, for a save that already has the skill
+let orderHinted = false;
+const ORDER_SAID = { attack: "Attack!", defend: "Defend me!", back: "Go back!" };
+function command(kind, heard) {
+  if (!minions.length || !ORDER_SAID[kind]) return false;
+  order = kind; renderOrders();
+  if (heard) subtitle("You", ORDER_SAID[kind]);
+  Snd.play("click");
+  return true;
+}
+// the foe a skeleton fights: on attack, the nearest one near the hero; on defend, one that has come close to the hero
+function minionTarget(s) {
+  const reach = order === "attack" ? 150 : 34;
+  let best = null, bd = Infinity;
+  mobs.forEach(m => {
+    if (m.dead) return;
+    const dh = Math.hypot(m.x - player.x, m.y - player.y); if (dh > reach) return;
+    const d = Math.hypot(m.x - s.x, m.y - s.y); if (d < bd) { bd = d; best = m; }
+  });
+  return best;
+}
+// commands by voice: only for one who agreed to voice on the title page, only while a skeleton stands and nothing is
+// being read or talked over. The browser's own speech recognition turns the sound into words.
+const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+let voiceAgreed = false, rec = null, recOn = false, recDead = false, lastHeard = { kind: "", at: 0 }, recAt = 0, recHeard = false, recFails = 0;
+const voiceOK = () => voiceAgreed || !!undefined;   // tests stand in for the consent page
+function heardOrder(text) {
+  const t = String(text || "").toLowerCase();
+  if (/\b(go back|back|retreat|return|fall back)\b/.test(t)) return "back";
+  if (/\b(defend|guard|protect)\b/.test(t)) return "defend";
+  if (/\b(attack|fight|charge|kill)\b/.test(t)) return "attack";
+  return null;
+}
+function listenStart() {
+  if (!rec) {
+    rec = new SpeechRec(); rec.lang = "en-US"; rec.continuous = true; rec.interimResults = true;
+    rec.onresult = e => {
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        recHeard = true;
+        const kind = heardOrder(e.results[i][0].transcript), now = performance.now();
+        if (kind && (kind !== lastHeard.kind || now - lastHeard.at > 900)) { lastHeard = { kind, at: now }; command(kind, true); }
+      }
+    };
+    // recognition stops by itself after a silence; it is started again while it is still wanted
+    // a session that dies within a second, three times running, means the browser cannot listen here
+    rec.onend = () => {
+      if (!recOn || recDead) return;
+      recFails = !recHeard && performance.now() - recAt < 1000 ? recFails + 1 : 0;
+      if (recFails >= 3) return recGiveUp();
+      setTimeout(() => { if (recOn && !recDead) { recAt = performance.now(); recHeard = false; try { rec.start(); } catch (e) {} } }, 400);
+    };
+    rec.onerror = e => { if (["not-allowed", "service-not-allowed", "network", "audio-capture"].includes(e.error)) recGiveUp(); };
+  }
+  recAt = performance.now(); recHeard = false;
+  try { rec.start(); } catch (e) {}
+  recOn = true; $("listen").hidden = false;
+}
+function recGiveUp() { recDead = true; recOn = false; $("listen").hidden = true; try { rec && rec.abort(); } catch (e) {} chat("Your browser will not listen. Command them with 1, 2 and 3.", "#bfb398"); }
+function listenStop() { recOn = false; $("listen").hidden = true; try { rec && rec.stop(); } catch (e) {} }
+function listenSync() {
+  const want = !!SpeechRec && voiceOK() && !recDead && !voiceMicDenied && started && minions.length > 0 && !dlg && !talk;
+  if (want && !recOn) listenStart(); else if (!want && recOn) listenStop();
+}
+const orderHint = () => SpeechRec && voiceOK() && !recDead ? "Command them aloud: attack, defend, go back. Or press 1, 2, 3." : "Command them with 1 attack, 2 defend, 3 go back.";
+function crumbleAll(why) {
+  if (!minions.length) return;
+  minions.forEach(s => burst(s.x, s.y - 6, "#bfb6a0", 10));
+  minions.length = 0; order = "back";
+  if (why) chat(why, "#bfb398");
+  renderOrders();
+}
+// where a skeleton stands around the hero: one of three places on a ring, wider while defending
+function ringSpot(s, r) {
+  const a = Math.PI / 2 + (s.i - 1) * (2 * Math.PI / 3);
+  return [player.x + Math.cos(a) * r, player.y + Math.sin(a) * r * 0.6];
+}
+function stepMinion(s, tx, ty, sp, dt) {
+  const dx = tx - s.x, dy = ty - s.y, d = Math.hypot(dx, dy);
+  if (d < 2) return d;
+  const nx = s.x + dx / d * sp * dt, ny = s.y + dy / d * sp * dt;
+  if (!blockedPx(nx, s.y, 3, 2)) s.x = nx; if (!blockedPx(s.x, ny, 3, 2)) s.y = ny;
+  if (Math.abs(dx) > 1) s.dir = dx < 0 ? -1 : 1;
+  return d;
+}
+function updateMinions(dt) {
+  for (let k = minions.length - 1; k >= 0; k--) {
+    const s = minions[k];
+    s.t += dt; s.cd = Math.max(0, s.cd - dt);
+    if (s.rise > 0) { s.rise -= dt; continue; }
+    if (s.hp <= 0) { burst(s.x, s.y - 6, "#bfb6a0", 10); minions.splice(k, 1); renderOrders(); continue; }
+    if (Math.hypot(s.x - player.x, s.y - player.y) > 280) { burst(s.x, s.y - 6, "#bfb6a0", 10); minions.splice(k, 1); renderOrders(); chat("A skeleton left far behind falls apart.", "#bfb398"); continue; }
+    if (order === "attack" && boss.active && !state.bossDown && Math.hypot(boss.x - player.x, boss.y - player.y) < 160) {
+      const d = stepMinion(s, boss.x, boss.y + 4, 46, dt);
+      if (d < 18 && s.cd <= 0) { s.cd = 0.9; if (boss.ward > 0) wardHit(); else hitBoss((boss.x - s.x) / (d || 1), (boss.y - s.y) / (d || 1), MINION_DMG); }
+      continue;
+    }
+    if (order === "defend") continue;   // they hold their ground, and the shield
+    const foe = order === "back" ? null : minionTarget(s);
+    if (foe) {
+      const d = stepMinion(s, foe.x, foe.y + 2, 46, dt);
+      if (d < 12 && s.cd <= 0) { s.cd = 0.9; const n = Math.hypot(foe.x - s.x, foe.y - s.y) || 1; hitMob(foe, (foe.x - s.x) / n, (foe.y - s.y) / n, MINION_DMG, false); }
+    } else {
+      // go back is a sprint: far from the hero they run three times as fast, leaving a trail of dust
+      const [fx, fy] = ringSpot(s, 22), far = Math.hypot(fx - s.x, fy - s.y) > 24;
+      stepMinion(s, fx, fy, far ? 150 : 46, dt);
+      if (far && Math.random() < dt * 20) parts.push({ x: s.x, y: s.y, vx: (Math.random() - 0.5) * 16, vy: -Math.random() * 10, life: 0.4, c: "#9a8a6a", g: 0 });
+    }
+  }
+}
+function drawMinion(s, cx, cy) {
+  const fr = Math.floor(s.t * 5) & 1, cv = SKEL_ART.n[fr], up = s.rise > 0 ? 1 - s.rise / 0.6 : 1;
+  const h = Math.max(1, Math.round(cv.height * up)), x = Math.round(s.x - cv.width / 2 - cx), y = Math.round(s.y - h - cy);
+  ctx.fillStyle = "rgba(0,0,0,.4)"; ctx.fillRect(Math.round(s.x - 4 - cx), Math.round(s.y - 1 - cy), 8, 2);
+  ctx.save(); if (s.dir < 0) { ctx.translate(x * 2 + cv.width, 0); ctx.scale(-1, 1); }
+  ctx.drawImage(cv, 0, 0, cv.width, h, x, y, cv.width, h);
+  ctx.restore();
+}
 renderHearts();
 
 // ---------- boss: Model Collapse, guardian of the gate ----------
 const BOSS_HOME = [840, 214], BOSS_HP = 20;
+const WARD_EVERY = 12, SWEEP_EVERY = 15, SWEEP_WIND = 2, SWEEP_R = 70;
+// the volley glows blue for 1.5 s first (time enough to say "defend"); its orbs seek the hero and strike hard
+const VOLLEY_WARN = 1.5, ORB_DMG = 20, ORB_TURN = 1.8, SHIELD_R = 15;   // the ward rises at the fight's start and this often after it breaks
 const CLAW_WIND = 0.4, CLAW_R = 27, CLAW_ARC = 1.1;
-const boss = { claw: 0, clawAng: 0, x: BOSS_HOME[0], y: BOSS_HOME[1], hp: BOSS_HP, active: false, t: 0, hitT: 0, stun: 0, kx: 0, ky: 0, cd: 0, castT: 2.5, tele: 0, phase: 1, dir: 1, glitch: 0 };
+const boss = { claw: 0, clawAng: 0, x: BOSS_HOME[0], y: BOSS_HOME[1], hp: BOSS_HP, active: false, t: 0, hitT: 0, stun: 0, kx: 0, ky: 0, cd: 0, castT: 2.5, tele: 0, phase: 1, dir: 1, glitch: 0, ward: 0, wardT: 0, sweep: 0, sweepT: 8, said: 0 };
 const orbs = [];
 const bossArt = (() => {
   const pal = P(["#050308", "#0e0818", "#1a0e2c", "#2a1644", "#3e2060", "#5a2c80"]);
@@ -4565,6 +4812,7 @@ function showBossBar(on) { $("bossbar").hidden = !on; if (on) $("boss-hp").style
 function bossReset() {
   boss.claw = 0;
   boss.active = false; boss.hp = BOSS_HP; boss.phase = 1; boss.x = BOSS_HOME[0]; boss.y = BOSS_HOME[1]; boss.tele = 0; boss.castT = 2.5;
+  boss.ward = 0; boss.wardT = 0; boss.sweep = 0; boss.sweepT = 8;
   orbs.length = 0; mobs.forEach(m => { if (m.temp) m.dead = true; }); showBossBar(false);
 }
 function hurtBy(name, dx, dy, dmg = 10) {
@@ -4578,7 +4826,7 @@ function hurtBy(name, dx, dy, dmg = 10) {
   if (player.hp <= 0) playerDie(name);
 }
 function hitBoss(nx, ny, dmg = 1) {
-  boss.hp -= dmg; boss.hitT = 0.12; boss.stun = 0.08; boss.kx = nx * 10; boss.ky = ny * 10; boss.glitch = 0.25;
+  boss.hp -= dmg; boss.hitT = 0.12; boss.stun = Math.max(boss.stun, 0.08); boss.kx = nx * 10; boss.ky = ny * 10; boss.glitch = 0.25;
   $("boss-hp").style.width = (boss.hp / BOSS_HP * 100) + "%";
   Snd.play("bossHit");
   for (let i = 0; i < 7; i++) parts.push({ x: boss.x, y: boss.y - 16, vx: (Math.random() - 0.5) * 70, vy: -Math.random() * 50, life: 0.5, c: Math.random() < 0.5 ? "#e060ff" : "#fff2c0", g: 60 });
@@ -4607,13 +4855,20 @@ function updateBoss(dt) {
   const homeD = Math.hypot(player.x - BOSS_HOME[0], player.y - BOSS_HOME[1]);
   if (!boss.active) {
     if (!player.dead && !boat.riding && homeD < 118) {
-      boss.active = true; showBossBar(true); Snd.play("bossWake"); boss.castT = 1.8;
+      if (!skillOpen()) {
+        if (time - boss.said > 8) { boss.said = time; subtitle("Model Collapse", "The guardian sleeps. It answers only one who can raise the fallen."); }
+        return;
+      }
+      boss.active = true; showBossBar(true); Snd.play("bossWake"); boss.castT = 1.8; boss.ward = 3; boss.wardT = WARD_EVERY;
       showBanner("Model Collapse", "Guardian of the Gate", "pvp");
       chat("Model Collapse rises before the gate!", "#e060ff");
     } else { boss.x += (BOSS_HOME[0] - boss.x) * Math.min(1, dt * 2); boss.y += (BOSS_HOME[1] - boss.y) * Math.min(1, dt * 2); }
     return;
   }
   if (player.dead || homeD > 240) { chat("Model Collapse sinks back into the dark, whole again.", "#b48cff"); bossReset(); return; }
+  if (boss.ward === 0 && (boss.wardT -= dt) <= 0) { boss.ward = 3; boss.wardT = WARD_EVERY; Snd.play("bossCharge"); chat("Model Collapse raises its ward. Only the risen can break it.", "#e060ff"); }
+  if (boss.sweep > 0) { if ((boss.sweep -= dt) <= 0) sweepLand(); }
+  else if ((boss.sweepT -= dt) <= 0) { boss.sweep = SWEEP_WIND; boss.sweepT = SWEEP_EVERY; Snd.play("bossClawWind"); chat("Model Collapse gathers itself. Get clear!", "#ff6040"); }
   if (boss.stun > 0) {
     boss.stun -= dt;
     const nx = boss.x + boss.kx * dt, ny = boss.y + boss.ky * dt;
@@ -4632,7 +4887,7 @@ function updateBoss(dt) {
       for (let k = 0; k < 14; k++) { const a = boss.clawAng + (k / 13 - 0.5) * 2 * CLAW_ARC, r = CLAW_R * (0.5 + Math.random() * 0.5); parts.push({ x: boss.x + Math.cos(a) * r, y: boss.y - 8 + Math.sin(a) * r * 0.8, vx: Math.cos(a) * 30, vy: Math.sin(a) * 30, life: 0.35, c: k % 2 ? "#ff5040" : "#ffd0c0", g: 0 }); }
       if (pd < CLAW_R + 2 && Math.abs(da) < CLAW_ARC + 0.1) hurtBy("Model Collapse", px, py, 25);
     }
-  } else if (d < 22 && boss.cd <= 0 && boss.tele <= 0) {
+  } else if (d < 22 && boss.cd <= 0 && boss.tele <= 0 && boss.stun <= 0) {
     boss.claw = CLAW_WIND; boss.clawAng = Math.atan2(dy, dx); boss.dir = dx < 0 ? -1 : 1; Snd.play("bossClawWind");
   }
   // telegraphed volley
@@ -4645,21 +4900,36 @@ function updateBoss(dt) {
       for (let k = 0; k < n; k++) { const a = base + (k - (n - 1) / 2) * spread; orbs.push({ x: boss.x, y: boss.y - 14, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd, life: 3 }); }
       Snd.play("bossCast");
     }
-  } else {
+  } else if (boss.stun <= 0) {
     boss.castT -= dt;
-    if (boss.castT <= 0) { if (d < 40) boss.castT = 0.3; else { boss.castT = boss.phase === 2 ? 2.9 : 3.9; boss.tele = 0.6; Snd.play("bossCharge"); } }
+    if (boss.castT <= 0) { if (d < 40) boss.castT = 0.3; else { boss.castT = boss.phase === 2 ? 2.9 : 3.9; boss.tele = VOLLEY_WARN; Snd.play("bossCharge"); } }
   }
   for (let i = orbs.length - 1; i >= 0; i--) {
-    const o = orbs[i]; o.life -= dt; o.x += o.vx * dt; o.y += o.vy * dt;
+    const o = orbs[i]; o.life -= dt;
+    { const sp = Math.hypot(o.vx, o.vy), want = Math.atan2(player.y - 6 - o.y, player.x - o.x); let a = Math.atan2(o.vy, o.vx), da = Math.atan2(Math.sin(want - a), Math.cos(want - a));
+      a += Math.max(-ORB_TURN * dt, Math.min(ORB_TURN * dt, da)); o.vx = Math.cos(a) * sp; o.vy = Math.sin(a) * sp; }   // they seek the hero
+    o.x += o.vx * dt; o.y += o.vy * dt;
     const t2 = get(Math.floor(o.x / TS), Math.floor(o.y / TS));
     if (o.life <= 0 || t2 === T.ROCK || t2 === T.FOREST || t2 === T.WALL) { orbs.splice(i, 1); continue; }
+    if (shieldUp() && Math.hypot(o.x - player.x, (o.y - (player.y - 8)) / 0.85) < SHIELD_R + 3) {
+      orbs.splice(i, 1); Snd.play("click"); shieldT = 0.25;
+      for (let k = 0; k < 8; k++) parts.push({ x: o.x, y: o.y, vx: (Math.random() - 0.5) * 60, vy: (Math.random() - 0.5) * 60, life: 0.4, c: k & 1 ? "#a8e8ff" : "#e060ff", g: 0 });
+      continue;
+    }
     if (Math.hypot(o.x - player.x, o.y - (player.y - 6)) < 7 && player.inv <= 0 && !player.dead) {
-      orbs.splice(i, 1); hurtBy("A collapsing orb", o.vx, o.vy, 10);
+      orbs.splice(i, 1); hurtBy("A collapsing orb", o.vx, o.vy, ORB_DMG);
       for (let k = 0; k < 6; k++) parts.push({ x: o.x, y: o.y, vx: (Math.random() - 0.5) * 50, vy: (Math.random() - 0.5) * 50, life: 0.4, c: "#e060ff", g: 0 });
     }
   }
 }
 function drawBoss(cx, cy, t) {
+  if (boss.sweep > 0) {
+    const k = 1 - boss.sweep / SWEEP_WIND;
+    ctx.save(); ctx.fillStyle = `rgba(220,40,25,${0.2 + 0.3 * k})`; ctx.strokeStyle = "rgba(255,110,70,1)"; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.ellipse(boss.x - cx, boss.y - cy, SWEEP_R, SWEEP_R * 0.7, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(boss.x - cx, boss.y - cy, SWEEP_R * k, SWEEP_R * 0.7 * k, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
   const fr = Math.floor(boss.t * 3) & 1, cv = boss.hitT > 0 ? bossArt.w[fr] : bossArt.n[fr];
   const x = Math.round(boss.x - 16 - cx), y = Math.round(boss.y - 34 - cy + Math.sin(boss.t * 1.8) * 1.5);
   ctx.fillStyle = "rgba(0,0,0,.4)"; ctx.fillRect(Math.round(boss.x - 10 - cx), Math.round(boss.y - 2 - cy), 20, 3);
@@ -4681,6 +4951,11 @@ function drawBoss(cx, cy, t) {
   ctx.globalAlpha = flare;
   ctx.fillRect(x + (flip ? 17 : 13), y + 12, 2, 1); ctx.fillRect(x + (flip ? 13 : 17), y + 12, 2, 1);
   ctx.globalAlpha = 1;
+  if (boss.ward > 0) {
+    ctx.save(); ctx.strokeStyle = "rgba(200,184,255,.85)"; ctx.lineWidth = 2; ctx.shadowColor = "#c8b8ff"; ctx.shadowBlur = 6;
+    for (let k = 0; k < boss.ward; k++) { const a0 = boss.t * 1.2 + k * (2 * Math.PI / 3); ctx.beginPath(); ctx.ellipse(boss.x - cx, boss.y - 14 - cy, 22, 16, 0, a0, a0 + 1.6); ctx.stroke(); }
+    ctx.restore();
+  }
 }
 
 // ---------- the mere's boat (steered by the player) ----------
@@ -4698,8 +4973,13 @@ function boatBlocked(x, y, ang = typeof boatRef !== "undefined" && boatRef ? boa
 }
 // it rests at the south shore, pushed out until the whole hull floats
 const BOAT_HOME = (() => { let y = (shoreS - 1) * TS + 6; for (let k = 0; k < 60 && boatBlocked(BOAT_TX * TS + 8, y, -Math.PI / 2); k++) y -= 2; return [BOAT_TX * TS + 8, y]; })();
-const bp = Array.isArray(state.boatPos) && !boatBlocked(state.boatPos[0], state.boatPos[1]) ? state.boatPos : BOAT_HOME;
+// a boat can be stepped into only from a shore within reach of its hull
+const boatShore = (x, y) => { for (let r = 16; r <= 40; r += 4) for (let k = 0; k < 16; k++) { const a = k / 16 * Math.PI * 2, px = x + Math.cos(a) * r, py = y + Math.sin(a) * r; if (!isWaterPx(px, py) && !blockedPx(px, py)) return true; } return false; };
+// a reload while rowing resumes in the boat; a boat left where no shore reaches it (saves from before) goes home
+const savedBoat = Array.isArray(state.boatPos) && !boatBlocked(state.boatPos[0], state.boatPos[1]) ? state.boatPos : null;
+const bp = savedBoat && (state.rowing || boatShore(savedBoat[0], savedBoat[1])) ? savedBoat : BOAT_HOME;
 const boat = { x: bp[0], y: bp[1], vx: 0, vy: 0, ang: -Math.PI / 2, riding: false, oarT: 0, saveT: 0, row: 0 };
+if (state.rowing && savedBoat) { boat.riding = true; player.x = boat.x; player.y = boat.y + 4; } else state.rowing = false;
 var boatRef = boat;
 const boatInter = { id: "boat", x: boat.x, y: boat.y, r: 30, my: 16, label: "Board the boat" };
 inter.push(boatInter);
@@ -4720,8 +5000,9 @@ const boatCv = (() => {
 })();
 const boatLantern = () => [boat.x + Math.cos(boat.ang) * 16, boat.y + Math.sin(boat.ang) * 16];
 function boatBoard() {
+  crumbleAll("Your skeletons crumble at the water's edge.");
   if (boat.riding || player.dead) return;
-  boat.riding = true; player.kvx = player.kvy = 0; player.moving = false;
+  boat.riding = true; player.kvx = player.kvy = 0; player.moving = false; state.rowing = true; state.boatPos = [Math.round(boat.x), Math.round(boat.y)]; save();
   player.x = boat.x; player.y = boat.y + 4;
   $("hint").hidden = true;
   Snd.play("boatBoard");
@@ -4735,7 +5016,7 @@ function boatDisembark() {
     if (r < bd) { bd = r; best = [x, y]; }
   }
   if (!best) { chat("The shore is too far to step off here.", "#ff6040"); return; }
-  boat.riding = false; boat.vx = boat.vy = 0;
+  boat.riding = false; boat.vx = boat.vy = 0; state.rowing = false;
   player.x = best[0]; player.y = best[1]; player.inv = Math.max(player.inv, 0.6);
   state.boatPos = [Math.round(boat.x), Math.round(boat.y)]; state.pos = [Math.round(player.x), Math.round(player.y)]; save();
   Snd.play("boatLand");
@@ -4874,7 +5155,7 @@ function update(dt) {
   if (!reduce) {
     for (const f of flames) if (Math.random() < dt * 5 * f.s) parts.push({ x: f.x + (Math.random() - 0.5) * 4, y: f.y - 4, vx: (Math.random() - 0.5) * 8, vy: -18 - Math.random() * 16, life: 1 + Math.random(), c: Math.random() < 0.5 ? "#ffb03a" : "#ff6a20", g: 0 });
     if (state.lit) statues.slice(0, state.lit).forEach(s => { if (Math.random() < dt * 2) parts.push({ x: s.x + (Math.random() - 0.5) * 4, y: s.y - 30, vx: 0, vy: -14, life: 1, c: "#ffb03a", g: 0 }); });
-    state.swords.forEach(i => { const w = swordTops[i]; if (Math.random() < dt * 5) { const r = 8 + Math.random() * 17; parts.push({ x: w.bx + (26 - r) * w.lean + (Math.random() - 0.5) * 3, y: w.by - 31 + r, vx: (Math.random() - 0.5) * 6, vy: -16 - Math.random() * 8, life: 0.9, c: Math.random() < 0.5 ? "#ffb03a" : "#ff6a20", g: 0 }); } });
+    state.swords.forEach(i => { const w = swordTops[i]; if (Math.random() < dt * 5) { const r = 8 + Math.random() * 17; parts.push({ x: w.bx + (26 - r) * w.lean + (Math.random() - 0.5) * 3, y: w.by - 31 + r, vx: (Math.random() - 0.5) * 6, vy: -16 - Math.random() * 8, life: 0.9, c: isCraft(i) ? (Math.random() < 0.5 ? "#bfe8ff" : "#6aa8ff") : Math.random() < 0.5 ? "#ffb03a" : "#ff6a20", g: 0 }); } });
     if (inTav(player.x, player.y) && Math.random() < dt * 6) parts.push({ x: ODMAN.x + (Math.random() - 0.5) * 16, y: ODMAN.y - 30 - Math.random() * 14, vx: (Math.random() - 0.5) * 8, vy: -14 - Math.random() * 10, life: 1.1, c: Math.random() < 0.5 ? "#ffb03a" : "#ff6a20", g: 0 });
     for (const m of mushroomsGlow) if (Math.random() < dt * 0.6 * m.s) parts.push({ x: m.x + (Math.random() - 0.5) * 12, y: m.y, vx: (Math.random() - 0.5) * 6, vy: -6 - Math.random() * 6, life: 2, c: "#b4baf8", g: 0 });
     for (const [x, y] of [[760, 184], [920, 184]]) if (Math.random() < dt * 3) parts.push({ x: x + (Math.random() - 0.5) * 30, y, vx: 0, vy: -20, life: 0.9, c: "#ff8a2a", g: 0 });
@@ -4885,13 +5166,14 @@ function update(dt) {
 }
 
 // ---------- render ----------
-function drawFlame(x, y, t, s, seed) {
+const FIRE = ["#ffe9a0", "#ffb03a", "#f0601c", "#9a1e0c", "#fff6d0"], WITCHFIRE = ["#f0fbff", "#9ad8ff", "#4a8af0", "#1e3a9a", "#ffffff"];
+function drawFlame(x, y, t, s, seed, pal = FIRE) {
   const h = Math.round((6 + Math.sin(t * 11 + seed) * 1.2 + Math.sin(t * 23 + seed * 2) * 0.8) * s);
   for (let i = 0; i < h; i++) {
     const f = i / h, w = Math.max(0, Math.round((1 - f) * 2.6 * s + Math.sin(t * 17 + i + seed) * 0.5)), sway = Math.round(Math.sin(t * 9 + i * 0.5 + seed) * f * 1.6);
-    ctx.fillStyle = f < 0.22 ? "#ffe9a0" : f < 0.5 ? "#ffb03a" : f < 0.8 ? "#f0601c" : "#9a1e0c";
+    ctx.fillStyle = f < 0.22 ? pal[0] : f < 0.5 ? pal[1] : f < 0.8 ? pal[2] : pal[3];
     ctx.fillRect(x - w + sway, y - i, w * 2 + 1, 1);
-    if (f < 0.45 && w > 1) { ctx.fillStyle = "#fff6d0"; ctx.fillRect(x - Math.floor(w / 2) + sway, y - i, Math.floor(w / 2) * 2 + 1, 1); }
+    if (f < 0.45 && w > 1) { ctx.fillStyle = pal[4]; ctx.fillRect(x - Math.floor(w / 2) + sway, y - i, Math.floor(w / 2) * 2 + 1, 1); }
   }
 }
 const inView = (x, y, m, cx, cy) => x > cx - m && x < cx + VW + m && y > cy - m && y < cy + VH + m;
@@ -4900,6 +5182,11 @@ const inView = (x, y, m, cx, cy) => x > cx - m && x < cx + VW + m && y > cy - m 
 function drawBladeFire(i, cx, cy, t) {
   const w = swordTops[i];
   const at = r => [w.bx + Math.round((26 - r) * w.lean) - cx, w.by - 31 + r - cy];
+  if (isCraft(i)) {   // a staff's crystal wakes and burns with a cold, pale fire
+    for (let r = 0; r < 7; r++) { const [bx, by] = at(r), pulse = Math.sin(t * 5 + r + i); ctx.fillStyle = pulse > 0.3 ? "#ffffff" : "#bfe8ff"; ctx.fillRect(bx, by, 1, 1); }
+    const [fx, fy] = at(0); drawFlame(fx, fy, t, 0.75, i * 7.7, WITCHFIRE);
+    return;
+  }
   for (let r = 7; r <= 25; r++) {
     const [bx, by] = at(r), heat = Math.sin(t * 9 + r * 0.9 + i);
     ctx.fillStyle = heat > 0.4 ? "#ffe08a" : heat > -0.3 ? "#ff9a2a" : "#e0461a";
@@ -4984,6 +5271,8 @@ function render() {
   // y-sorted sprites + player
   const list = [];
   for (const s of sprites) { const base = s.base || s.y; if (inView(s.x, s.y, 120, cx, cy)) list.push({ base, s }); }
+  corpses.forEach(c => { if (inView(c.x, c.y, 20, cx, cy)) list.push({ base: c.y - 4, corpse: c }); });
+  minions.forEach(s => { if (inView(s.x, s.y, 20, cx, cy)) list.push({ base: s.y, minion: s }); });
   mobs.forEach(m => { if (!m.dead && inView(m.x, m.y, 30, cx, cy)) list.push({ base: m.y, m }); });
   if (!state.bossDown && inView(boss.x, boss.y, 50, cx, cy)) list.push({ base: boss.y, bossE: true });
   if (inView(ODMAN.x, ODMAN.y, 60, cx, cy)) list.push({ base: ODMAN.y, od: true });
@@ -5023,6 +5312,8 @@ function render() {
     else if (e.bossE) drawBoss(cx, cy, t);
     else if (e.boat) drawBoat(cx, cy, t);
     else if (e.blade !== undefined) drawBladeFire(e.blade, cx, cy, t);
+    else if (e.corpse) drawCorpse(e.corpse, cx, cy);
+    else if (e.minion) drawMinion(e.minion, cx, cy);
     else if (e.m) drawMob(e.m, cx, cy, t);
     else { const s = e.s; ctx.drawImage(s.cv, Math.round(s.x - s.ax - cx), Math.round(s.y - s.ay - cy)); }
   }
@@ -5048,7 +5339,7 @@ function render() {
   });
 
   ctx.drawImage(overCv, cx, cy, VW, VH, 0, 0, VW, VH);
-  if (!tav) drawFalls(cx, cy, t);
+  if (!tav) { drawFalls(cx, cy, t); drawShield(cx, cy, t); }
   // smoke from the tavern's hidden chimney, rising through the leaves
   const smX = TAV_GATE.x - 40, smY = TAV_GATE.y - 76;
   if (!tav && inView(smX, smY, 60, cx, cy)) for (let i = 0; i < 8; i++) {
@@ -5090,6 +5381,8 @@ function render() {
   shards.forEach(s => { if (!s.got) hole(s.x - cx, s.y - 10 - cy, 26, 0.9); });
   { const [lx, ly] = boatLantern(); hole(lx - cx, ly - cy, 42 + flick, 0.9); }
   if (!state.bossDown) hole(boss.x - cx, boss.y - 16 - cy, boss.active ? 60 : 36, boss.active ? 0.6 : 0.35);
+  if (boss.sweep > 0) hole(boss.x - cx, boss.y - cy, SWEEP_R * 1.25, 0.75);
+  if (shieldUp()) hole(player.x - cx, player.y - 8 - cy, SHIELD_R * 2.2, 0.6);   // the sweep's ring is seen in the dark
   orbs.forEach(o => hole(o.x - cx, o.y - cy, 16, 0.7));
   if (!state.bossDown && boss.claw > 0) hole(boss.x + Math.cos(boss.clawAng) * 14 - cx, boss.y - 8 + Math.sin(boss.clawAng) * 11 - cy, 30, 0.8);
   hole(676 - cx, 360 - cy, 24, 0.8);
@@ -5105,10 +5398,12 @@ function render() {
     ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2);
   };
   glows.forEach(g => { if (!g.when || g.when()) glow(g.x - cx, g.y - cy, g.r + flick * (g.f || 0), g.c); });
+  if (boss.tele > 0 && boss.active) glow(boss.x - cx, boss.y - 16 - cy, 40, `rgba(90,150,255,${0.35 + 0.25 * Math.sin(time * 14)})`);   // the volley gathers: blue
+  if (boss.sweep > 0) glow(boss.x - cx, boss.y - cy, SWEEP_R * 1.1, `rgba(255,50,30,${0.2 + 0.3 * (1 - boss.sweep / SWEEP_WIND)})`);   // the sweep lights the dark it is about to fill
   glow(player.x - cx, player.y - 10 - cy, 30, "rgba(255,150,70,.12)");
   mushroomsGlow.forEach(m => glow(m.x - cx, m.y - cy, m.r * 0.8, `rgba(90,100,255,${0.16 + 0.06 * Math.sin(t * 1.5 + m.x)})`));
   statues.slice(0, state.lit).forEach(s => glow(s.x - cx, s.y - 28 - cy, 24, "rgba(255,140,50,.3)"));
-  state.swords.forEach(i => { const w = swordTops[i]; glow(w.x - cx, w.y - 4 - cy, 20, "rgba(255,130,40,.32)"); });
+  state.swords.forEach(i => { const w = swordTops[i]; glow(w.x - cx, w.y - 4 - cy, 20, isCraft(i) ? "rgba(120,190,255,.34)" : "rgba(255,130,40,.32)"); });
   inter.forEach((it, idx) => {
     if (!marked(it)) return;
     const a0 = flyAnchor(it);
@@ -5334,7 +5629,7 @@ function frame(now) {
   let dt = rdt;
   if (hitStop > 0) { hitStop -= rdt; dt = 0; }
   shakeT = Math.max(0, shakeT - rdt);
-  update(dt); render(); drawMini(now / 1000); drawTalkPortrait(now / 1000); if (!$("wmap").hidden) drawWorldMap(now / 1000);
+  update(dt); listenSync(); render(); drawMini(now / 1000); drawTalkPortrait(now / 1000); if (!$("wmap").hidden) drawWorldMap(now / 1000);
   requestAnimationFrame(frame);
 }
 render();
