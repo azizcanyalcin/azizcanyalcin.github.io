@@ -3013,7 +3013,7 @@ function inkPlate(c, W, H, k) { inkify(c, W, H, k); }
 function drawArt(name) {
   const cv = $("dlg-portrait"), c = cv.getContext("2d"), W = cv.width, H = cv.height;
   c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, W, H); c.imageSmoothingEnabled = false;
-  if (name === "compass") { drawEmblem(c, W, H); return; }
+  if (!name || name === "compass") { drawEmblem(c, W, H); return; }   // a page without a picture of its own shows the emblem
   if (name.startsWith("npc:")) {
     const id = name.slice(4);
     if (id === "odman") { drawOdman(c, W / 2, Math.round(H * 0.9), 0.37, 7); inkify(c, W, H, 9); }
@@ -3109,7 +3109,7 @@ function lockPage(on) {
 }
 function stopNarration() {
   const N = narration; narration = null;
-  if (N) { N.audio.pause(); cancelAnimationFrame(N.raf); }
+  if (N) { N.audio.pause(); cancelAnimationFrame(N.raf); clearInterval(N.watch); }
 }
 function startNarration(delay) {
   stopNarration();
@@ -3121,7 +3121,12 @@ function startNarration(delay) {
   const N = narration = { audio: a, spans: [...el.children], times: n.times, shown: 0, raf: 0 };
   lockPage(true);
   const page = dlg.i, book = dlg.c;
-  const finish = ok => { if (narration !== N) return; N.spans.forEach(sp => sp.classList.add("on")); cancelAnimationFrame(N.raf); narration = null; if (ok) markHeard(book, page); else if (dlg) dlg.audioFailed = true; lockPage(false); };
+  const finish = ok => {
+    if (narration !== N) return;
+    narration = null; cancelAnimationFrame(N.raf); clearInterval(N.watch);
+    try { N.spans.forEach(sp => sp.classList.add("on")); if (ok) markHeard(book, page); else if (dlg) dlg.audioFailed = true; }
+    finally { lockPage(false); }
+  };
   const done = () => finish(true), failed = () => finish(false);
   const tick = () => {
     if (narration !== N) return;
@@ -3133,10 +3138,21 @@ function startNarration(delay) {
     N.raf = requestAnimationFrame(tick);
   };
   a.addEventListener("ended", done); a.addEventListener("error", failed);
-  setTimeout(() => { if (narration === N) a.play().then(() => { N.raf = requestAnimationFrame(tick); }, failed); }, delay);
+  // the book must never stay locked: a voice that never starts, stops moving, or runs past its end frees the page
+  // (a stall frees the whole book, as audio that fails does; a missed end counts the page as heard)
+  const t0 = performance.now(), end = (n.times && n.times.length ? n.times[n.times.length - 1] : 0) + 5;
+  let playAt = 0, lastT = -1, still = 0;
+  N.watch = setInterval(() => {
+    if (narration !== N) { clearInterval(N.watch); return; }
+    if (a.ended) return done();
+    if (!playAt) { if (performance.now() - t0 > 9000) failed(); return; }
+    if (a.currentTime > lastT + 0.01) { lastT = a.currentTime; still = 0; } else if (++still >= 4) return failed();
+    if ((performance.now() - playAt) / 1000 > Math.max(end, (a.duration || 0) + 5)) done();
+  }, 1000);
+  setTimeout(() => { if (narration === N) a.play().then(() => { playAt = performance.now(); N.raf = requestAnimationFrame(tick); }, failed); }, delay);
 }
 function openDialog(c, onClose, opts = {}) {
-  closeMap(); closeMenu(); Snd.play("open"); Snd.duck(true); ensurePaper();
+  endFlip(); closeMap(); closeMenu(); Snd.play("open"); Snd.duck(true); ensurePaper();
   dlg = { c, i: 0, shown: 0, onClose };
   $("dlg").hidden = false; $("hint").hidden = true; $("hint").dataset.t = "";
   $("game").classList.add("reading");
@@ -3184,10 +3200,22 @@ function makeLeafFace(src, paper, W, H, offset, width, isBack) {
   wrap.append(src, shade); f.appendChild(wrap);
   return { f, shade };
 }
+// flipping is shared by every book: whatever happens during a turn, it must end, or no book could turn or close again
+function endFlip() {
+  flipping = false;
+  const sheet = $("tome-flip"); sheet.classList.remove("on"); sheet.replaceChildren(); sheet.style.transform = "";
+  document.querySelectorAll("#tome .under").forEach(n => n.remove());
+  document.querySelectorAll("#tome .cast").forEach(n => { n.style.opacity = 0; });
+}
 function turnPage(d) {
   if (flipping) return;
   Snd.play("page");
   if (reduce || innerWidth <= 760) { dlg.i += d; showPage(); return; }
+  const from = dlg.i;
+  try { flipLeaf(d); }
+  catch (e) { endFlip(); if (dlg && dlg.i === from) { dlg.i += d; showPage(); } }
+}
+function flipLeaf(d) {
   flipping = true;
   const R = $("dlg-body"), Lp = $("tome-left"), sheet = $("tome-flip"), W = R.offsetWidth, H = R.offsetHeight, cut = Math.round(W * 0.58);
   // faces are prepared completely before the first frame
@@ -3210,7 +3238,8 @@ function turnPage(d) {
   const castR = R.querySelector(".cast"), castL = Lp.querySelector(".cast");
   sheet.classList.add("on");
   const dur = 620, t0 = performance.now();
-  const frame = now => {
+  const frame = now => { try { step(now); } catch (e) { endFlip(); } };
+  const step = now => {
     const p = Math.min(1, (now - t0) / dur), e = bez(p), prog = d > 0 ? e : 1 - e;
     const ang = -180 * prog, lift = Math.sin(Math.PI * prog);
     sheet.style.transform = `rotateY(${ang}deg)`;
@@ -3242,7 +3271,7 @@ function advance() {
   closeDialog();
 }
 function pageBack() { if (dlg && !dlg.locked && dlg.i > 0) turnPage(-1); }
-function closeDialog() { if (!dlg) return; if (bookHeld()) { $("dlg-next").classList.remove("nudge"); void $("dlg-next").offsetWidth; $("dlg-next").classList.add("nudge"); return; } stopNarration(); focusGame(); Snd.play("close"); Snd.duck(false); const cb = dlg.onClose; dlg = null; $("dlg").hidden = true; $("game").classList.remove("reading"); if (cb) cb(); }
+function closeDialog() { if (!dlg) return; if (bookHeld()) { $("dlg-next").classList.remove("nudge"); void $("dlg-next").offsetWidth; $("dlg-next").classList.add("nudge"); return; } stopNarration(); endFlip(); focusGame(); Snd.play("close"); Snd.duck(false); const cb = dlg.onClose; dlg = null; $("dlg").hidden = true; $("game").classList.remove("reading"); if (cb) cb(); }
 $("dlg-body").addEventListener("click", advance);
 // the left page turns back, as the right one turns forward
 $("tome-left").addEventListener("click", e => { e.stopPropagation(); pageBack(); });
@@ -3867,7 +3896,7 @@ function openBestiary() {
     if (!met.includes(id)) { pages.push("An unknown figure. Their story has not reached you yet. Look for them where travellers gather."); arts.push("unknown"); links.push(null); return; }
     // the keepers are fictional for now; a real reference (real, role, linkedin) shows only when the content gives one
     pages.push(n.real ? `${n.name}, ${n.title}. ${n.lore}\n\nIn the waking world: ${n.real}, ${n.role}. For the full account, reach out to ${n.real.split(" ")[0]}.\n\nThese figures are fictional tributes, made with consent. The AI voice speaks for no one.`
-      : `${n.name}, ${n.title}. ${n.lore}\n\nThe figures of this realm are fictional. The AI voice speaks for no one.`);
+      : `${n.name}, ${n.title}. ${n.lore}`);
     arts.push("npc:" + id);
     links.push(n.linkedin ? [{ label: "LinkedIn", href: n.linkedin, text: n.linkedinLabel }, n.phone && { label: "Phone", text: n.phone }].filter(Boolean) : null);
   });
