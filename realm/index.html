@@ -434,15 +434,18 @@ button{font:inherit;color:inherit}
 
 /* ---- touch ---- */
 .pad{position:absolute;left:0;right:0;bottom:24px;z-index:4;display:flex;justify-content:space-between;align-items:flex-end;padding:0 18px;pointer-events:none}
-.dpad{display:grid;grid-template-columns:repeat(3,46px);grid-template-rows:repeat(3,46px);gap:5px;pointer-events:auto}
+/* an analog stick, like a gamepad's: drag the knob inside the ring */
+.stick{position:relative;width:124px;height:124px;border-radius:50%;pointer-events:auto;touch-action:none;background:radial-gradient(circle,rgba(9,7,12,.35) 0,rgba(9,7,12,.6) 70%);box-shadow:inset 0 0 0 1px var(--line),0 0 0 1px rgba(0,0,0,.6)}
+.stick .knob{position:absolute;left:50%;top:50%;width:54px;height:54px;margin:-27px 0 0 -27px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#3a2e2a,#120d10 70%);box-shadow:inset 0 0 0 1px var(--ember),0 4px 10px rgba(0,0,0,.6);pointer-events:none}
+.stick.on .knob{box-shadow:inset 0 0 0 1px var(--ember-hi),0 0 12px rgba(232,150,74,.45)}
 .pad button{appearance:none;border:0;background:rgba(9,7,12,.65);box-shadow:inset 0 0 0 1px var(--line);color:var(--bone-2);font-size:16px;touch-action:none}
 .pad button.on{box-shadow:inset 0 0 0 1px var(--ember);color:var(--ember-hi)}
-.dpad [data-k="up"]{grid-area:1/2}.dpad [data-k="left"]{grid-area:2/1}.dpad [data-k="right"]{grid-area:2/3}.dpad [data-k="down"]{grid-area:3/2}
+.abtn.rz{font-size:22px!important;box-shadow:inset 0 0 0 1px #d8cfb6!important}
 .pad-r{display:flex;gap:12px;align-items:flex-end;pointer-events:none}
 .abtn{width:60px;height:60px;border-radius:50%!important;pointer-events:auto;font-family:var(--title);font-weight:700;font-size:18px!important;box-shadow:inset 0 0 0 1px var(--ember)!important}
 .abtn.atk{width:70px;height:70px;font-size:22px!important}
 
-@media (pointer:coarse){.cross{display:none}.chat{bottom:190px}}
+@media (pointer:coarse){.cross{display:none}.chat{bottom:190px}.orders{left:16px;bottom:auto;top:132px}}
 @media (max-width:900px){
   .chat{width:300px}
   .tracker{width:220px}
@@ -609,13 +612,8 @@ button{font:inherit;color:inherit}
   <div class="death" id="death" hidden><div><b>You have fallen</b><small>Returning to the Wayfarer's Rest…</small></div></div>
 
   <div class="pad" id="pad" hidden>
-    <div class="dpad">
-      <button type="button" data-k="up" aria-label="Up">▲</button>
-      <button type="button" data-k="left" aria-label="Left">◀</button>
-      <button type="button" data-k="right" aria-label="Right">▶</button>
-      <button type="button" data-k="down" aria-label="Down">▼</button>
-    </div>
-    <div class="pad-r"><button type="button" class="abtn atk" id="atkbtn" aria-label="Attack">⚔&#xFE0E;</button><button type="button" class="abtn" id="abtn" aria-label="Interact">E</button></div>
+    <div class="stick" id="stick" aria-label="Move"><i class="knob" id="knob"></i></div>
+    <div class="pad-r"><button type="button" class="abtn rz" id="rzbtn" aria-label="Raise the Fallen" hidden>💀</button><button type="button" class="abtn atk" id="atkbtn" aria-label="Attack">⚔&#xFE0E;</button><button type="button" class="abtn" id="abtn" aria-label="Interact">E</button></div>
   </div>
 
   <div class="title" id="title" data-phase="idle">
@@ -2838,6 +2836,7 @@ function fitView() {
   const w = innerWidth, h = innerHeight;
   SCALE = Math.max(1, Math.round(h / 260));
   if (w / SCALE < 230) SCALE = Math.max(1, Math.floor(w / 230));
+  if (coarse) SCALE = Math.max(2, Math.round(Math.min(w, h) / 165));   // a phone: closer, about 10 to 13 tiles across the short side
   VW = Math.min(MPW, Math.ceil(w / SCALE)); VH = Math.min(MPH, Math.ceil(h / SCALE));
   view.width = VW; view.height = VH; light.width = VW; light.height = VH;
   view.style.width = VW * SCALE + "px"; view.style.height = VH * SCALE + "px";
@@ -4194,8 +4193,19 @@ function themeAutoplay() {
   theme.play().then(() => { fadeAudio(theme, themeVol(), TITLE_T.fade); titleWake(); }, () => {});
 }
 const titleAct = () => titlePhase === "idle" ? titleWake() : consentShown() ? null : enterRealm();
+// on a phone the realm opens full screen, and turns sideways where the browser allows it (Android); it must be asked
+// for in the same tap that enters, so it comes before anything is awaited
+function phoneFullscreen() {
+  if (!coarse || document.fullscreenElement) return;
+  const el = $("game"), req = el.requestFullscreen || el.webkitRequestFullscreen;
+  try {
+    Promise.resolve(req && req.call(el, { navigationUI: "hide" }))
+      .then(() => screen.orientation && screen.orientation.lock && screen.orientation.lock("landscape")).catch(() => {});
+  } catch (e) {}
+}
 async function enterRealm(withVoice = true) {
   if (titlePhase !== "prep" || $("enter").disabled) return;
+  phoneFullscreen();
   titlePhase = "enter"; $("enter").disabled = true; $("c-agree").disabled = $("c-decline").disabled = true;
   if (withVoice) await askMic(); else voiceMicDenied = true;   // without voice the keepers talk in text, and no microphone is asked for
   voiceAgreed = withVoice && voiceOn() && !voiceMicDenied;   // and the skeletons may hear their commands (only where the consent page was shown)
@@ -4274,17 +4284,31 @@ view.addEventListener("click", () => { if (!started) return titleAct(); if (!dlg
 const KEYS_HINT = $("title-keys").textContent;
 function applyCoarse(on) {
   coarse = on; $("pad").hidden = !on;
-  $("title-keys").textContent = on ? "Use the pad to walk, ⚔ to attack and E to interact" : KEYS_HINT;
+  $("title-keys").textContent = on ? "Use the stick to walk, ⚔ to attack and E to interact" : KEYS_HINT;
   $("press").textContent = on ? "Tap to begin" : "Press any key";
   if (!on) for (const k of ["up", "down", "left", "right"]) keys[k] = false;
+  fitView();
 }
 coarseMq.addEventListener("change", e => applyCoarse(e.matches));
 applyCoarse(coarse);
 {
-  $("pad").querySelectorAll("[data-k]").forEach(b => {
-    const k = b.dataset.k, on = e => { e.preventDefault(); keys[k] = true; b.classList.add("on"); }, off = () => { keys[k] = false; b.classList.remove("on"); };
-    b.addEventListener("pointerdown", on); b.addEventListener("pointerup", off); b.addEventListener("pointercancel", off); b.addEventListener("pointerleave", off);
-  });
+  const stick = $("stick"), knob = $("knob"), R = 36;
+  let pid = null, sector = -1;
+  const steer = e => {
+    const r = stick.getBoundingClientRect(), dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2), d = Math.hypot(dx, dy), k = d > R ? R / d : 1;
+    knob.style.transform = `translate(${dx * k}px,${dy * k}px)`;
+    // eight fixed directions; a held direction gives way only once the thumb is 7.5° past its edge
+    if (d < R * 0.3) { sector = -1; keys.left = keys.right = keys.up = keys.down = false; return; }
+    const a = Math.atan2(dy, dx), near = Math.round(a / (Math.PI / 4)) & 7;
+    if (sector < 0 || Math.abs(Math.atan2(Math.sin(a - sector * Math.PI / 4), Math.cos(a - sector * Math.PI / 4))) > Math.PI / 8 + Math.PI / 24) sector = near;
+    const [sx, sy] = [[1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1], [1, -1]][sector];
+    keys.left = sx < 0; keys.right = sx > 0; keys.up = sy < 0; keys.down = sy > 0;
+  };
+  const release = () => { pid = null; sector = -1; stick.classList.remove("on"); knob.style.transform = ""; keys.left = keys.right = keys.up = keys.down = false; };
+  stick.addEventListener("pointerdown", e => { e.preventDefault(); if (!started) return titleAct(); pid = e.pointerId; try { stick.setPointerCapture(pid); } catch (err) {} stick.classList.add("on"); steer(e); });
+  stick.addEventListener("pointermove", e => { if (e.pointerId === pid) steer(e); });
+  stick.addEventListener("pointerup", release); stick.addEventListener("pointercancel", release);
+  $("rzbtn").addEventListener("pointerdown", e => { e.preventDefault(); if (!started) titleAct(); else if (!dlg) raiseFallen(); });
   $("atkbtn").addEventListener("pointerdown", e => { e.preventDefault(); if (!started) titleAct(); else if (dlg) advance(); else attack(); });
   $("abtn").addEventListener("pointerdown", e => { e.preventDefault(); if (!started) titleAct(); else if (dlg) advance(); else interact(nearest); });
 }
@@ -4655,7 +4679,7 @@ function drawShield(cx, cy, t) {
   ctx.restore();
 }
 function renderOrders() {
-  const r = $("risen"); r.hidden = !skillOpen(); $("risen-n").textContent = `${minions.length}/${MINION_MAX}`;
+  const r = $("risen"); r.hidden = !skillOpen(); $("rzbtn").hidden = !skillOpen(); $("risen-n").textContent = `${minions.length}/${MINION_MAX}`;
   r.querySelectorAll(".pips i").forEach((p, k) => p.classList.toggle("on", k < minions.length));
   const bar = $("orders"); bar.hidden = !minions.length;
   bar.querySelectorAll("[data-o]").forEach(el => el.classList.toggle("on", el.dataset.o === order));
@@ -5219,8 +5243,11 @@ function drawFalls(cx, cy, t) {
 }
 function render() {
   const tav = inTav(player.x, player.y);
-  let cx = tav ? Math.round(VW >= TAVW ? TAVX + (TAVW - VW) / 2 : Math.min(TAVX + TAVW - VW, Math.max(TAVX, player.x - VW / 2))) : Math.round(Math.min(MPW - VW, Math.max(0, player.x - VW / 2)));
-  let cy = tav ? Math.round(VH >= TAVH ? TAVY + (TAVH - VH) / 2 : Math.min(TAVY + TAVH - VH, Math.max(TAVY, player.y - 8 - VH / 2))) : Math.round(Math.min(MPH - VH, Math.max(0, player.y - 8 - VH / 2)));
+  // the camera follows the hero's whole-pixel position, so hero and world never round apart (a 1 px shimmer, worst on
+  // diagonals and at a phone's larger scale)
+  const hx = Math.round(player.x) - (VW >> 1), hy = Math.round(player.y) - 8 - (VH >> 1);
+  let cx = tav ? Math.round(VW >= TAVW ? TAVX + (TAVW - VW) / 2 : Math.min(TAVX + TAVW - VW, Math.max(TAVX, hx))) : Math.min(MPW - VW, Math.max(0, hx));
+  let cy = tav ? Math.round(VH >= TAVH ? TAVY + (TAVH - VH) / 2 : Math.min(TAVY + TAVH - VH, Math.max(TAVY, hy))) : Math.min(MPH - VH, Math.max(0, hy));
   if (shakeT > 0 && !reduce) { const m = shakeMag * shakeT / shakeDur; cx += Math.round((Math.random() - 0.5) * 2 * m); cy += Math.round((Math.random() - 0.5) * 2 * m); }
   const t = time;
   ctx.globalCompositeOperation = "source-over"; ctx.globalAlpha = 1;
