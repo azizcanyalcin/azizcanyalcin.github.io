@@ -141,7 +141,6 @@ button{font:inherit;color:inherit}
 .orders button canvas{position:absolute;left:10px;top:10px;width:26px;height:26px;image-rendering:pixelated}
 .orders button kbd{position:absolute;left:50%;bottom:-13px;transform:translateX(-50%);font-family:var(--title);font-weight:700;font-size:10px;color:var(--bone-2);text-shadow:var(--tx)}
 .orders button.on{box-shadow:0 0 0 1px #000,0 0 0 2px var(--ember-hi),0 0 14px rgba(255,160,70,.55)}
-.orders .listen{width:9px;height:9px;border-radius:50%;background:#e0402a;box-shadow:0 0 8px #e0402a;animation:blinkl 1.4s ease-in-out infinite}
 #game.reading .orders{visibility:hidden}
 /* a power learned: a card that says what was gained and how to use it */
 .power{position:absolute;inset:0;z-index:9;display:grid;place-items:center;padding:16px;background:radial-gradient(ellipse at 50% 50%,rgba(0,0,0,.35),rgba(0,0,0,.75))}
@@ -549,7 +548,7 @@ button{font:inherit;color:inherit}
   <div class="chat" aria-live="polite"><div class="chat-log" id="chat"></div></div>
 
   <div class="cross" id="slots" aria-label="Actions"></div>
-  <div class="orders" id="orders" hidden aria-label="Skeleton commands"><button type="button" data-o="attack" title="Attack (1)" aria-label="Attack"><canvas width="20" height="20"></canvas><kbd>1</kbd></button><button type="button" data-o="defend" title="Defend (2): a shield around you" aria-label="Defend"><canvas width="20" height="20"></canvas><kbd>2</kbd></button><button type="button" data-o="back" title="Go back (3): they run to your side" aria-label="Go back"><canvas width="20" height="20"></canvas><kbd>3</kbd></button><i class="listen" id="listen" hidden title="Listening for your commands"></i></div>
+  <div class="orders" id="orders" hidden aria-label="Skeleton commands"><button type="button" data-o="attack" title="Attack (1)" aria-label="Attack"><canvas width="20" height="20"></canvas><kbd>1</kbd></button><button type="button" data-o="defend" title="Defend (2): a shield around you" aria-label="Defend"><canvas width="20" height="20"></canvas><kbd>2</kbd></button><button type="button" data-o="back" title="Go back (3): they run to your side" aria-label="Go back"><canvas width="20" height="20"></canvas><kbd>3</kbd></button></div>
 
   <div class="tip" id="hint" hidden></div>
   <div class="zonetext" id="banner" hidden><b id="banner-name"></b><small id="banner-sub"></small></div>
@@ -4273,7 +4272,6 @@ async function enterRealm(withVoice = true) {
   if (titlePhase !== "prep" || $("enter").disabled) return;
   titlePhase = "enter"; $("enter").disabled = true; $("c-agree").disabled = $("c-decline").disabled = true;
   if (withVoice) await askMic(); else voiceMicDenied = true;   // without voice the keepers talk in text, and no microphone is asked for
-  voiceAgreed = withVoice && voiceOn() && !voiceMicDenied;   // and the skeletons may hear their commands (only where the consent page was shown)
   fadeAudio(theme, 0, TITLE_T.fade, () => theme.pause());
   $("title").classList.add("leave");
   fadeThen(startGame);
@@ -4401,9 +4399,9 @@ const crows = [];
 
 // ---------- mobs & combat ----------
 const MOB = {
-  hallu: { name: "Hallucination", dmg: 9, hp: 2, wander: 22, chase: 44, aggro: 78, flies: true, done: "Hallucination grounded.", col: "#b8b0ff" },
-  regr: { name: "Context Rot", dmg: 12, hp: 3, wander: 18, chase: 38, aggro: 70, flies: false, done: "Context refreshed.", col: "#d2402e" },
-  flaky: { name: "Injection", dmg: 8, hp: 1, wander: 34, chase: 58, aggro: 84, flies: true, done: "Injection sanitized.", col: "#a07ad0" },
+  hallu: { name: "Hallucination", dmg: 9, hp: 2, wander: 22, chase: 44, aggro: 50, flies: true, done: "Hallucination grounded.", col: "#b8b0ff" },
+  regr: { name: "Context Rot", dmg: 12, hp: 3, wander: 18, chase: 38, aggro: 45, flies: false, done: "Context refreshed.", col: "#d2402e" },
+  flaky: { name: "Injection", dmg: 8, hp: 1, wander: 34, chase: 58, aggro: 55, flies: true, done: "Injection sanitized.", col: "#a07ad0" },
 };
 function mobFrames(rowsList, pal) {
   const mk = (rows, white) => { const L = new Layer(rows[0].length, rows.length); rows.forEach((r, y) => [...r].forEach((ch, x) => { if (pal[ch]) L.px(x, y, white ? [255, 255, 255] : pal[ch]); })); return L.canvas(); };
@@ -4423,7 +4421,7 @@ const MOB_ART = {
     [".....k.....", "....kek....", "..kkkkkkk..", ".kmmkkkmmk.", "kmmk...kmmk", "kk.......kk"],
   ], { k: H("#120a18"), m: H("#4a3068"), e: H("#ff3a2a") }),
 };
-const MOB_HOMES = { hallu: [[22, 33], [8, 32], [22, 11], [40, 31]], regr: [[47, 42], [56, 38], [51, 44], [44, 34]], flaky: [[44, 16], [59, 28], [56, 14]] };
+const MOB_HOMES = { hallu: [[22, 33], [22, 11]], regr: [[47, 42], [56, 38]], flaky: [[44, 16], [59, 28]] };   // six, spread out: two in the Field, for the fallen
 const nearSpawn = (tx, ty) => Math.hypot(tx - 32, ty - 41) < 6.5;
 function mobBlocked(m, x, y) {
   const tx = Math.floor(x / TS), ty = Math.floor(y / TS), t = get(tx, ty);
@@ -4747,9 +4745,9 @@ function drawShield(cx, cy, t) {
 }
 // the card for a power learned, with its art, what it does and how to use it on this device
 function showPower() {
-  const K = CONTENT.power.fallen, phone = phoneish(), voiceOk = typeof voiceOK === "function" && voiceOK() && !!SpeechRec;
+  const K = CONTENT.power.fallen, phone = phoneish();
   $("power-k").textContent = K.kicker; $("power-t").textContent = K.title; $("power-p").textContent = K.body;
-  $("power-l").replaceChildren(...[phone ? K.raiseTouch : K.raiseKeys, phone ? K.commandTouch : K.commandKeys, voiceOk ? K.voice : null].filter(Boolean).map(t => Object.assign(document.createElement("li"), { textContent: t })));
+  $("power-l").replaceChildren(...[phone ? K.raiseTouch : K.raiseKeys, phone ? K.commandTouch : K.commandKeys].filter(Boolean).map(t => Object.assign(document.createElement("li"), { textContent: t })));
   $("power-ok").textContent = K.ok;
   const c = $("power-art").getContext("2d"); c.clearRect(0, 0, 16, 16); c.drawImage(SKEL_ART.n[0], 2, 0);
   $("power").hidden = false; Snd.play("levelup"); $("power-ok").focus({ preventScroll: true });
@@ -4765,10 +4763,9 @@ function renderOrders() {
 renderOrders();   // the Risen pips, for a save that already has the skill
 let orderHinted = false;
 const ORDER_SAID = { attack: "Attack!", defend: "Defend me!", back: "Go back!" };
-function command(kind, heard) {
+function command(kind) {
   if (!minions.length || !ORDER_SAID[kind]) return false;
   order = kind; renderOrders();
-  if (heard) subtitle("You", ORDER_SAID[kind]);
   Snd.play("click");
   return true;
 }
@@ -4783,49 +4780,7 @@ function minionTarget(s) {
   });
   return best;
 }
-// commands by voice: only for one who agreed to voice on the title page, only while a skeleton stands and nothing is
-// being read or talked over. The browser's own speech recognition turns the sound into words.
-const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
-let voiceAgreed = false, rec = null, recOn = false, recDead = false, lastHeard = { kind: "", at: 0 }, recAt = 0, recHeard = false, recFails = 0;
-const voiceOK = () => voiceAgreed || !!undefined;   // tests stand in for the consent page
-function heardOrder(text) {
-  const t = String(text || "").toLowerCase();
-  if (/\b(go back|back|retreat|return|fall back)\b/.test(t)) return "back";
-  if (/\b(defend|guard|protect)\b/.test(t)) return "defend";
-  if (/\b(attack|fight|charge|kill)\b/.test(t)) return "attack";
-  return null;
-}
-function listenStart() {
-  if (!rec) {
-    rec = new SpeechRec(); rec.lang = "en-US"; rec.continuous = true; rec.interimResults = true;
-    rec.onresult = e => {
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        recHeard = true;
-        const kind = heardOrder(e.results[i][0].transcript), now = performance.now();
-        if (kind && (kind !== lastHeard.kind || now - lastHeard.at > 900)) { lastHeard = { kind, at: now }; command(kind, true); }
-      }
-    };
-    // recognition stops by itself after a silence; it is started again while it is still wanted
-    // a session that dies within a second, three times running, means the browser cannot listen here
-    rec.onend = () => {
-      if (!recOn || recDead) return;
-      recFails = !recHeard && performance.now() - recAt < 1000 ? recFails + 1 : 0;
-      if (recFails >= 3) return recGiveUp();
-      setTimeout(() => { if (recOn && !recDead) { recAt = performance.now(); recHeard = false; try { rec.start(); } catch (e) {} } }, 400);
-    };
-    rec.onerror = e => { if (["not-allowed", "service-not-allowed", "network", "audio-capture"].includes(e.error)) recGiveUp(); };
-  }
-  recAt = performance.now(); recHeard = false;
-  try { rec.start(); } catch (e) {}
-  recOn = true; $("listen").hidden = false;
-}
-function recGiveUp() { recDead = true; recOn = false; $("listen").hidden = true; try { rec && rec.abort(); } catch (e) {} chat("Your browser will not listen. Command them with 1, 2 and 3.", "#bfb398"); }
-function listenStop() { recOn = false; $("listen").hidden = true; try { rec && rec.stop(); } catch (e) {} }
-function listenSync() {
-  const want = !!SpeechRec && voiceOK() && !recDead && !voiceMicDenied && started && minions.length > 0 && !dlg && !talk;
-  if (want && !recOn) listenStart(); else if (!want && recOn) listenStop();
-}
-const orderHint = () => SpeechRec && voiceOK() && !recDead ? "Command them aloud: attack, defend, go back. Or press 1, 2, 3." : "Command them with 1 attack, 2 defend, 3 go back.";
+const orderHint = () => phoneish() ? "Command them with the three round buttons: attack, defend, go back." : "Command them with 1 attack, 2 defend, 3 go back.";
 function crumbleAll(why) {
   if (!minions.length) return;
   minions.forEach(s => burst(s.x, s.y - 6, "#bfb6a0", 10));
@@ -5736,7 +5691,7 @@ function frame(now) {
   let dt = rdt;
   if (hitStop > 0) { hitStop -= rdt; dt = 0; }
   shakeT = Math.max(0, shakeT - rdt);
-  update(dt); listenSync(); render(); drawMini(now / 1000); drawTalkPortrait(now / 1000); if (!$("wmap").hidden) drawWorldMap(now / 1000);
+  update(dt); render(); drawMini(now / 1000); drawTalkPortrait(now / 1000); if (!$("wmap").hidden) drawWorldMap(now / 1000);
   requestAnimationFrame(frame);
 }
 render();
