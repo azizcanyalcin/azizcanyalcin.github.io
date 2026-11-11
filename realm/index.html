@@ -4,6 +4,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="The Realm of Azizcan: a small dark-fantasy pixel game that tells the work of Azizcan Yalçın.">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob: https://cdn.jsdelivr.net https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://realm-voice.azizcanyalcin.workers.dev http://localhost:8787 wss://api.elevenlabs.io https://api.elevenlabs.io https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; img-src 'self' data: blob:; media-src 'self' blob:; worker-src blob:; base-uri 'none'; form-action 'none'">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://azizcanyalcin.github.io/">
+<meta property="og:title" content="The Realm of Azizcan">
+<meta property="og:description" content="A small dark-fantasy pixel game that tells the work of Azizcan Yalçın.">
+<meta property="og:image" content="https://azizcanyalcin.github.io/realm/img/title.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="img/favicon.svg" type="image/svg+xml">
 <title>The Realm of Azizcan</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -456,10 +463,18 @@ button{font:inherit;color:inherit}
 .talk-you{margin:8px 0 0;max-width:780px;font-family:var(--serif);font-size:14px;line-height:1.45;color:var(--dim);font-style:italic;max-height:3em;overflow-y:auto}
 .talk.voice .talk-line{max-height:6.2em;overflow-y:auto}
 .talk-ember{display:inline-flex;align-items:center;gap:10px;margin-top:14px;font-family:var(--title);font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--bone-2)}
-.talk-ember::before{content:"";width:10px;height:10px;transform:rotate(45deg);background:var(--ember);box-shadow:0 0 10px rgba(232,150,74,.9)}
-.talk-ember[data-s="connecting"]::before{animation:emberFlick 1.4s ease-in-out infinite}
-.talk-ember[data-s="listening"]::before{animation:emberPulse .8s ease-in-out infinite}
-@keyframes emberPulse{50%{transform:rotate(45deg) scale(1.45);box-shadow:0 0 18px rgba(255,170,80,1)}}
+/* a live talk shows its sound: five bars that follow the keeper's voice (ember) or the traveller's own (bone); --l and --o are set each frame */
+.talk-ember .lvl{display:inline-flex;align-items:center;gap:3px;height:24px}
+.talk-ember .lvl b{width:3px;height:24px;border-radius:1px;background:var(--ember);box-shadow:0 0 6px rgba(232,150,74,.8);transform:scaleY(calc(.14 + var(--l,0)*var(--k,.86)))}
+.talk-ember .lvl b:nth-child(1),.talk-ember .lvl b:nth-child(5){--k:.38}
+.talk-ember .lvl b:nth-child(2),.talk-ember .lvl b:nth-child(4){--k:.64}
+.talk-ember[data-s="listening"] .lvl b,.talk-ember[data-s="thinking"] .lvl b{background:var(--bone);box-shadow:0 0 5px rgba(236,225,200,.5)}
+.talk-ember[data-s="connecting"] .lvl{animation:emberFlick 1.4s ease-in-out infinite}
+.talk-ember[data-s="thinking"] .lvl b{animation:lvlWave .9s ease-in-out infinite}
+.talk-ember[data-s="thinking"] .lvl b:nth-child(2){animation-delay:.12s}.talk-ember[data-s="thinking"] .lvl b:nth-child(3){animation-delay:.24s}
+.talk-ember[data-s="thinking"] .lvl b:nth-child(4){animation-delay:.36s}.talk-ember[data-s="thinking"] .lvl b:nth-child(5){animation-delay:.48s}
+@keyframes lvlWave{50%{transform:scaleY(.8)}}
+.talk.voice .talk-portrait{filter:drop-shadow(0 0 calc(var(--o,0)*24px) rgba(255,170,80,.9))}
 @keyframes emberFlick{50%{opacity:.35}}
 .talk-leave{appearance:none;border:0;background:none;margin:14px 0 0 26px;padding:0;cursor:pointer;font-family:var(--title);font-weight:600;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
 .talk-leave:hover,.talk-leave:focus-visible{outline:none;color:var(--bone)}
@@ -577,7 +592,7 @@ button{font:inherit;color:inherit}
   </div>
   <div class="talk" id="talk" hidden role="dialog" aria-live="polite">
     <div class="talk-portrait"><canvas id="talk-cv" width="48" height="48"></canvas></div>
-    <div class="talk-body"><b class="talk-name" id="talk-name"></b><p class="talk-you" id="talk-you" hidden></p><div id="ts-box" hidden></div><p class="talk-line" id="talk-line"></p><ol class="talk-choices" id="talk-choices"></ol><span class="talk-more" id="talk-more">E ›</span><span class="talk-ember" id="talk-ember" data-s="connecting" hidden></span><button class="talk-leave" id="talk-leave" type="button" hidden>Leave</button></div>
+    <div class="talk-body"><b class="talk-name" id="talk-name"></b><p class="talk-you" id="talk-you" hidden></p><div id="ts-box" hidden></div><p class="talk-line" id="talk-line"></p><ol class="talk-choices" id="talk-choices"></ol><span class="talk-more" id="talk-more">E ›</span><span class="talk-ember" id="talk-ember" data-s="connecting" hidden><i class="lvl" aria-hidden="true"><b></b><b></b><b></b><b></b><b></b></i><span id="talk-state"></span></span><button class="talk-leave" id="talk-leave" type="button" hidden>Leave</button></div>
   </div>
   <div class="fade" id="fade" hidden></div>
   <div class="subband" id="subband" hidden><b id="sub-name"></b><p id="sub-line"></p></div>
@@ -1841,7 +1856,7 @@ function drawTavNpc(n, cx, cy, t) {
     }
     // the spill from the rock and a few rising droplets; more of them, and higher, when he is glad
     if (dry < 0.6 && still < 0.6) for (let k = 0; k < 4; k++) { ctx.fillStyle = (Math.floor(t * 10) + k) % 2 ? PAL_W[0] : PAL_W[1]; ctx.fillRect(ox + 15 + (k & 1), oy + 5 + k, 1, 1); }
-    const drops = dry > 0.3 || still > 0.5 ? 0 : bloom > 0.3 ? 6 : 3, rise = 12 + bloom * 8;
+    const drops = dry > 0.3 || still > 0.5 ? 0 : bloom > 0.3 || geVol > 0.15 ? 6 : 3, rise = 12 + bloom * 8 + geVol * 10;   // and while he speaks
     for (let k = 0; k < drops; k++) { const ph = (t * 0.7 + k / drops) % 1; ctx.globalAlpha = 1 - ph; ctx.fillStyle = PAL_W[0]; ctx.fillRect(ox + 8 + k * (18 / drops) + Math.round(Math.sin(t * 2 + k) * 1.5), oy + 9 - Math.round(ph * rise), 1, 1); ctx.globalAlpha = 1; }
     // flowers open one by one around the stones
     [[3, 10], [6, 14], [10, 17], [16, 18], [22, 17], [26, 14], [29, 10], [25, 5], [7, 5]].forEach(([fx, fy], i) => {
@@ -2054,7 +2069,7 @@ const OD_MOODS = ["calm", "warm", "amused", "angry", "sad"];
 let odMood = "calm", odVol = 0, odFlareT = 0;
 // Gēhān's feeling shows in the spring (see the spring's drawing); geMoodT eases each change in
 const GE_MOODS = ["calm", "warm", "amused", "angry", "sad"];
-let geMood = "calm", geMoodT = 1;
+let geMood = "calm", geMoodT = 1, geVol = 0, micVol = 0;
 function drawOdman(g, bx, by, t, s) {
   const R0 = -1, R1 = 46, D = 13, grid = [];
   for (let r = R0; r <= R1; r++) { const row = []; for (let dx = -D; dx <= D; dx++) row.push(odPart(r, dx)); grid.push(row); }
@@ -3839,7 +3854,7 @@ function geVoiceVars() {
 const odSpoken = t => String(t || "").replace(/\[[^\]]*\]/g, "").replace(/\s+/g, " ").trim();
 // subtitles build up as the model writes, from its first token; a tag still being written is hidden
 let odStream = "";
-function setEmber(s) { const el = $("talk-ember"); el.dataset.s = s; el.textContent = s === "connecting" ? `${voice ? VNPCS[voice.npc].name : "Od-Man"} stirs, listening…` : s === "listening" ? "He listens" : "He speaks"; }
+function setEmber(s) { $("talk-ember").dataset.s = s; $("talk-state").textContent = s === "connecting" ? `${voice ? VNPCS[voice.npc].name : "Od-Man"} stirs, listening…` : s === "listening" ? "He listens. Speak." : s === "thinking" ? "He weighs your words…" : "He speaks"; }
 function talkVoiceUI(on) {
   $("talk").classList.toggle("voice", on);
   $("talk-choices").replaceChildren(); $("talk-more").hidden = on;
@@ -3954,7 +3969,7 @@ async function voiceStart(npc = "odman") {
         if (p.type === "start") { odStream = ""; $("talk-line").textContent = ""; }
         else if (p.type === "delta" && typeof p.text === "string") { odStream += p.text; const t = odSpoken(odStream.replace(/\[[^\]]*$/, "")); if (t) $("talk-line").textContent = t; }
       },
-      onMessage: ({ source, message }) => { if (voice !== v) return; if (source === "ai") { odStream = ""; $("talk-line").textContent = odSpoken(message); } else if (message !== N.kickoff) { $("talk-you").hidden = false; $("talk-you").textContent = "You: " + message; } },
+      onMessage: ({ source, message }) => { if (voice !== v) return; if (source === "ai") { odStream = ""; $("talk-line").textContent = odSpoken(message); } else if (message !== N.kickoff) { $("talk-you").hidden = false; $("talk-you").textContent = "You: " + message; if (v.mode !== "speaking") { setEmber("thinking"); clearTimeout(v.thinkT); v.timers.push(v.thinkT = setTimeout(() => { if (voice === v && $("talk-ember").dataset.s === "thinking") setEmber("listening"); }, 8000)); } } },
       onModeChange: ({ mode }) => { if (voice !== v) return; v.mode = mode; setEmber(mode); if (v.leaving) { if (mode === "speaking") v.finalLine = true; else if (v.finalLine) voiceEnd(); } },
       onDisconnect: d => { if (voice !== v) return; if (d && d.reason === "error" && !v.leaving) voiceFallback(N.lines.gutter, true); else voiceEnd(); },
       onError: () => {},
@@ -4291,7 +4306,7 @@ const focusGame = () => { try { $("game").focus({ preventScroll: true }); } catc
 function startGame() {
   if (started) return; started = true; titlePhase = "gone"; $("title").hidden = true; focusGame(); setTimeout(focusGame, 0); Snd.start(); Snd.zone(zoneName);
   chat("Welcome to the Realm of Azizcan.", "#ffff00");
-  chat("Your quests are tracked on the right. Press M for the world map.", "#ffff00");
+  chat(phoneish() ? "Your quest will show at the top of the screen. Tap it to open your journal." : "Your quests are tracked on the right. Press M for the world map.", "#ffff00");
   const z0 = inTav(player.x, player.y) ? { name: "The Ember Tavern" } : ZONES.find(z => z.test(player.x >> 4, player.y >> 4));
   zoneName = z0 ? z0.name : "The Moss Wood"; $("mm-zone").textContent = zoneName; Snd.zone(zoneName);
   if (z0) banner(z0.name);
@@ -5149,7 +5164,11 @@ function update(dt) {
   time += dt;
   odFlareT = Math.max(0, odFlareT - dt * 1.5);
   geMoodT = Math.min(1, geMoodT + dt * 1.2);
-  const ov = voice && voice.npc === "odman" && voice.conv ? Math.min(1, voice.conv.getOutputVolume() * 2) : 0; odVol += (ov - odVol) * Math.min(1, dt * 12);
+  const vc = voice && voice.conv, vk = Math.min(1, dt * 12), out = vc ? Math.min(1, vc.getOutputVolume() * 2) : 0;
+  odVol += ((voice && voice.npc === "odman" ? out : 0) - odVol) * vk; geVol += ((voice && voice.npc === "gehan" ? out : 0) - geVol) * vk;
+  // the band's bars: his voice while he speaks, otherwise the traveller's own, so they see they are heard
+  micVol += ((vc && vc.getInputVolume && voice.mode !== "speaking" ? Math.min(1, vc.getInputVolume() * 4) : 0) - micVol) * vk;
+  if (voice) { const ts = $("talk").style; ts.setProperty("--o", (odVol + geVol).toFixed(2)); ts.setProperty("--l", (voice.mode === "speaking" ? odVol + geVol : micVol).toFixed(2)); }
   if (started && !dlg && !uiBlocked() && !player.dead && !boat.riding) {
     let vx = (keys.right ? 1 : 0) - (keys.left ? 1 : 0), vy = (keys.down ? 1 : 0) - (keys.up ? 1 : 0);
     player.moving = !!(vx || vy);
